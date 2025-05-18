@@ -27,7 +27,6 @@ const create = (
   const tools: ServerTool[] = []
   const models: ServerTool[] = []
   const preRouteMiddleware: ExpressMiddleware[] = []
-  const postRouteMiddleware: ExpressMiddleware[] = []
 
   const addTool = (tool: ServerTool) => {
     // eslint-disable-next-line functional/immutable-data
@@ -141,12 +140,12 @@ const create = (
         name: context.config[McpNamespace].name || '@node-in-layers/mcp-server',
         version: context.config[McpNamespace].version || '1.0.0',
         tools: allTools,
-        ...context.config[McpNamespace].server,
+        server: context.config[McpNamespace].server,
       },
       {
-        // @ts-ignore
-        preRouteMiddleware,
-        postRouteMiddleware,
+        express: {
+          preRouteMiddleware,
+        },
       }
     )
     return server
@@ -155,11 +154,6 @@ const create = (
   const addPreRouteMiddleware = (middleware: ExpressMiddleware) => {
     // eslint-disable-next-line functional/immutable-data
     preRouteMiddleware.push(middleware)
-  }
-
-  const addPostRouteMiddleware = (middleware: ExpressMiddleware) => {
-    // eslint-disable-next-line functional/immutable-data
-    postRouteMiddleware.push(middleware)
   }
 
   const start = async () => {
@@ -183,7 +177,6 @@ const create = (
     addTool,
     addModelCruds,
     addPreRouteMiddleware,
-    addPostRouteMiddleware,
   }
 }
 

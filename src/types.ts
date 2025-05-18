@@ -1,8 +1,11 @@
 import { ExpressMiddleware } from '@l4t/mcp-ai/common/types.js'
+import { ServerTool } from '@l4t/mcp-ai/simple-server/types.js'
 import {
-  ServerTool,
-  SimpleServerConfig,
-} from '@l4t/mcp-ai/simple-server/types.js'
+  ServerHttpConfig,
+  ServerCliConfig,
+  ServerSseConfig,
+  ServerStatelessHttpConfig,
+} from '@l4t/mcp-ai'
 import {
   Config,
   CommonContext,
@@ -13,11 +16,20 @@ import {
 import { Express } from 'express'
 import { ToolNameGenerator } from 'functional-models-orm-mcp'
 
+type Connection =
+  | ServerHttpConfig
+  | ServerCliConfig
+  | ServerSseConfig
+  | ServerStatelessHttpConfig
+
 export type McpServerConfig = Readonly<{
   [McpNamespace]: {
     name?: string
     version?: string
-    server: SimpleServerConfig
+    stateless?: boolean
+    server: {
+      connection: Connection
+    }
     logging?: {
       requestLogLevel: LogLevelNames
       responseLogLevel: LogLevelNames
@@ -38,7 +50,6 @@ export type McpServerMcp = Readonly<{
     }
   ) => void
   addPreRouteMiddleware: (middleware: ExpressMiddleware) => void
-  addPostRouteMiddleware: (middleware: ExpressMiddleware) => void
 }>
 
 export type McpServerMcpLayer = Readonly<{
