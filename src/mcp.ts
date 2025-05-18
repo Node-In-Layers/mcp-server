@@ -13,6 +13,7 @@ import {
   ToolNameGenerator,
 } from 'functional-models-orm-mcp'
 import { v4 as uuidv4 } from 'uuid'
+import { asyncMap } from 'modern-async'
 import {
   McpServerMcp,
   McpServerConfig,
@@ -55,13 +56,13 @@ const create = (
       {
         ...generateMcpToolForModelOperation(model, 'save', opts),
         execute: async (input: any) => {
-          return cruds.create(input)
+          return cruds.create(input).then(x => x.toObj())
         },
       },
       {
         ...generateMcpToolForModelOperation(model, 'retrieve', opts),
         execute: async ({ id }: { id: string }) => {
-          return cruds.retrieve(id)
+          return cruds.retrieve(id).then(x => (x ? x.toObj() : null))
         },
       },
       {
@@ -73,7 +74,13 @@ const create = (
       {
         ...generateMcpToolForModelOperation(model, 'search', opts),
         execute: async (input: any) => {
-          return cruds.search(input)
+          return cruds.search(input).then(result => {
+            const instances = asyncMap(result.instances, y => y.toObj())
+            return {
+              instances,
+              page: result.page,
+            }
+          })
         },
       },
       {
@@ -206,11 +213,11 @@ const mcpModels = <TConfig extends Config = Config>(
   context: McpContext<TConfig>,
   opts?: { nameGenerator: ToolNameGenerator }
 ) => {
-  const expressFunctions = context.mcp[McpNamespace]
+  const mcpFunctions = context.mcp[McpNamespace]
   const namedFeatures = get(context, `features.${namespace}`)
   if (!namedFeatures) {
     throw new Error(
-      `features.${namespace} does not exist on context needed for express.`
+      `features.${namespace} does not exist on context needed for mcp.`
     )
   }
   // Look for CRUDS functions.
@@ -219,7 +226,7 @@ const mcpModels = <TConfig extends Config = Config>(
       if (typeof value === 'object') {
         if (key === 'cruds') {
           Object.entries(value).forEach(([, modelCrudFuncs]) => {
-            expressFunctions.addModelCruds(
+            mcpFunctions.addModelCruds(
               modelCrudFuncs as ModelCrudsFunctions<any>,
               opts
             )
