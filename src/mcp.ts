@@ -105,7 +105,9 @@ const create = (
         DEFAULT_RESPONSE_REQUEST_LOG_LEVEL
       logger[level]('Request received', {
         method: 'POST',
-        url: '/',
+        // @ts-ignore
+        url: context.config[McpNamespace].server?.path || '/',
+        tool: tool.name,
         body: input,
       })
 
