@@ -6,7 +6,7 @@ import {
 } from '@node-in-layers/core'
 import { createSimpleServer } from '@l4t/mcp-ai/simple-server/index.js'
 import { ServerTool } from '@l4t/mcp-ai/simple-server/types.js'
-import { ExpressOptions } from '@l4t/mcp-ai/common/types.js'
+import { ExpressMiddleware } from '@l4t/mcp-ai/common/types.js'
 import {
   generateMcpToolForModelOperation,
   ToolNameGenerator,
@@ -26,6 +26,8 @@ const create = (
 ): McpServerMcp => {
   const tools: ServerTool[] = []
   const models: ServerTool[] = []
+  const preRouteMiddleware: ExpressMiddleware[] = []
+  const postRouteMiddleware: ExpressMiddleware[] = []
 
   const addTool = (tool: ServerTool) => {
     // eslint-disable-next-line functional/immutable-data
@@ -132,7 +134,7 @@ const create = (
     }
   }
 
-  const _getServer = (expressOptions?: ExpressOptions) => {
+  const _getServer = () => {
     const allTools = [...tools, ...models].map(_wrapToolsWithLogger)
     const server = createSimpleServer(
       {
@@ -141,19 +143,32 @@ const create = (
         tools: allTools,
         ...context.config[McpNamespace].server,
       },
-      // @ts-ignore
-      expressOptions
+      {
+        // @ts-ignore
+        preRouteMiddleware,
+        postRouteMiddleware,
+      }
     )
     return server
   }
 
-  const start = async (expressOptions?: ExpressOptions) => {
-    const server = _getServer(expressOptions)
+  const addPreRouteMiddleware = (middleware: ExpressMiddleware) => {
+    // eslint-disable-next-line functional/immutable-data
+    preRouteMiddleware.push(middleware)
+  }
+
+  const addPostRouteMiddleware = (middleware: ExpressMiddleware) => {
+    // eslint-disable-next-line functional/immutable-data
+    postRouteMiddleware.push(middleware)
+  }
+
+  const start = async () => {
+    const server = _getServer()
     await server.start()
   }
 
-  const getApp = (expressOptions?: ExpressOptions) => {
-    const server = _getServer(expressOptions)
+  const getApp = () => {
+    const server = _getServer()
     // @ts-ignore
     if (!server?.getApp) {
       throw new Error(`Server not http or sse`)
@@ -167,6 +182,8 @@ const create = (
     getApp,
     addTool,
     addModelCruds,
+    addPreRouteMiddleware,
+    addPostRouteMiddleware,
   }
 }
 

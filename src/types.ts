@@ -1,3 +1,4 @@
+import { ExpressMiddleware } from '@l4t/mcp-ai/common/types.js'
 import {
   ServerTool,
   SimpleServerConfig,
@@ -36,6 +37,8 @@ export type McpServerMcp = Readonly<{
       nameGenerator: ToolNameGenerator
     }
   ) => void
+  addPreRouteMiddleware: (middleware: ExpressMiddleware) => void
+  addPostRouteMiddleware: (middleware: ExpressMiddleware) => void
 }>
 
 export type McpServerMcpLayer = Readonly<{
