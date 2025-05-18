@@ -204,39 +204,36 @@ const create = (
  * @param opts Options for the tool name generator.
  * @returns A function that can be used to add the models to the MCP server.
  */
-const mcpModels =
-  <TConfig extends Config = Config>(
-    namespace: string,
-    opts: {
-      nameGenerator: ToolNameGenerator
-    }
-  ) =>
-  (context: McpContext<TConfig>) => {
-    const expressFunctions = context.mcp[McpNamespace]
-    const namedFeatures = get(context, `features.${namespace}`)
-    if (!namedFeatures) {
-      throw new Error(
-        `features.${namespace} does not exist on context needed for express.`
-      )
-    }
-    // Look for CRUDS functions.
-    Object.entries(namedFeatures).forEach(
-      ([key, value]: [key: string, value: any]) => {
-        if (typeof value === 'object') {
-          if (key === 'cruds') {
-            Object.entries(value).forEach(([, modelCrudFuncs]) => {
-              expressFunctions.addModelCruds(
-                modelCrudFuncs as ModelCrudsFunctions<any>,
-                opts
-              )
-            })
-          }
-        }
-      },
-      {}
+const mcpModels = <TConfig extends Config = Config>(
+  namespace: string,
+  context: McpContext<TConfig>,
+  opts?: { nameGenerator: ToolNameGenerator }
+) => {
+  const expressFunctions = context.mcp[McpNamespace]
+  const namedFeatures = get(context, `features.${namespace}`)
+  if (!namedFeatures) {
+    throw new Error(
+      `features.${namespace} does not exist on context needed for express.`
     )
-
-    return {}
   }
+  // Look for CRUDS functions.
+  Object.entries(namedFeatures).forEach(
+    ([key, value]: [key: string, value: any]) => {
+      if (typeof value === 'object') {
+        if (key === 'cruds') {
+          Object.entries(value).forEach(([, modelCrudFuncs]) => {
+            expressFunctions.addModelCruds(
+              modelCrudFuncs as ModelCrudsFunctions<any>,
+              opts
+            )
+          })
+        }
+      }
+    },
+    {}
+  )
+
+  return {}
+}
 
 export { create, mcpModels }

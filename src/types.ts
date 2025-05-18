@@ -45,7 +45,7 @@ export type McpServerMcp = Readonly<{
   getApp: () => Express
   addModelCruds: (
     modelCruds: ModelCrudsFunctions<any>,
-    opts: {
+    opts?: {
       nameGenerator: ToolNameGenerator
     }
   ) => void
