@@ -53,7 +53,7 @@ const create = (
     const model = cruds.getModel()
     const tools: ServerTool[] = [
       {
-        ...generateMcpToolForModelOperation(model, 'create', opts),
+        ...generateMcpToolForModelOperation(model, 'save', opts),
         execute: async (input: any) => {
           return cruds.create(input)
         },
@@ -62,12 +62,6 @@ const create = (
         ...generateMcpToolForModelOperation(model, 'retrieve', opts),
         execute: async ({ id }: { id: string }) => {
           return cruds.retrieve(id)
-        },
-      },
-      {
-        ...generateMcpToolForModelOperation(model, 'update', opts),
-        execute: async (input: any) => {
-          return cruds.update(model.getPrimaryKey(input), input)
         },
       },
       {
