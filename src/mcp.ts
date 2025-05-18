@@ -135,6 +135,7 @@ const create = (
         name: context.config[McpNamespace].name || '@node-in-layers/mcp-server',
         version: context.config[McpNamespace].version || '1.0.0',
         tools: allTools,
+        stateless: context.config[McpNamespace].stateless,
         server: context.config[McpNamespace].server,
       },
       {
