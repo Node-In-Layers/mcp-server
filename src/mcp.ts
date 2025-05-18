@@ -36,7 +36,7 @@ const create = (
 
   const addModelCruds = (
     cruds: ModelCrudsFunctions<any>,
-    opts: {
+    opts?: {
       nameGenerator: ToolNameGenerator
     }
   ) => {
@@ -46,7 +46,7 @@ const create = (
 
   const _createToolsForModelCruds = (
     cruds: ModelCrudsFunctions<any>,
-    opts: {
+    opts?: {
       nameGenerator: ToolNameGenerator
     }
   ): readonly ServerTool[] => {
