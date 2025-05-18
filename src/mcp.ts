@@ -3,10 +3,11 @@ import {
   Config,
   FeaturesContext,
   ModelCrudsFunctions,
+  CrossLayerProps,
 } from '@node-in-layers/core'
 import { createSimpleServer } from '@l4t/mcp-ai/simple-server/index.js'
 import { ServerTool } from '@l4t/mcp-ai/simple-server/types.js'
-import { ExpressMiddleware } from '@l4t/mcp-ai/common/types.js'
+import { ExpressMiddleware, McpTool } from '@l4t/mcp-ai/common/types.js'
 import {
   generateMcpToolForModelOperation,
   ToolNameGenerator,
@@ -171,12 +172,29 @@ const create = (
     return server.getApp()
   }
 
+  const addFeature = <T>(
+    featureFunc: (input: T) => Promise<any>,
+    tool: McpTool
+  ) => {
+    tools.push({
+      ...tool,
+      execute: async (input: any, crossLayerProps?: CrossLayerProps) => {
+        // @ts-ignore
+        return featureFunc(
+          ...(Array.isArray(input) ? input : [input]),
+          crossLayerProps
+        )
+      },
+    })
+  }
+
   return {
     start,
     getApp,
     addTool,
     addModelCruds,
     addPreRouteMiddleware,
+    addFeature,
   }
 }
 
