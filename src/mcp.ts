@@ -185,8 +185,7 @@ const create = (
       execute: async (input: any, crossLayerProps?: CrossLayerProps) => {
         return featureFunc(
           // @ts-ignore
-          ...(Array.isArray(input) ? input : [input]),
-          crossLayerProps
+          ...(Array.isArray(input) ? input : [input]).concat(crossLayerProps)
         )
       },
     })
