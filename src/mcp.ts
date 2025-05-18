@@ -205,13 +205,13 @@ const create = (
  * @returns A function that can be used to add the models to the MCP server.
  */
 const mcpModels =
-  (
+  <TConfig extends Config = Config>(
     namespace: string,
     opts: {
       nameGenerator: ToolNameGenerator
     }
   ) =>
-  <TConfig extends Config = Config>(context: McpContext<TConfig>) => {
+  (context: McpContext<TConfig>) => {
     const expressFunctions = context.mcp[McpNamespace]
     const namedFeatures = get(context, `features.${namespace}`)
     if (!namedFeatures) {
