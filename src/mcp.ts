@@ -74,8 +74,8 @@ const create = (
       {
         ...generateMcpToolForModelOperation(model, 'search', opts),
         execute: async (input: any) => {
-          return cruds.search(input).then(result => {
-            const instances = asyncMap(result.instances, y => y.toObj())
+          return cruds.search(input).then(async result => {
+            const instances = await asyncMap(result.instances, y => y.toObj())
             return {
               instances,
               page: result.page,
