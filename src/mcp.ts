@@ -211,7 +211,7 @@ const mcpModels =
       nameGenerator: ToolNameGenerator
     }
   ) =>
-  (context: FeaturesContext & McpContext) => {
+  <TConfig extends Config = Config>(context: McpContext<TConfig>) => {
     const expressFunctions = context.mcp[McpNamespace]
     const namedFeatures = get(context, `features.${namespace}`)
     if (!namedFeatures) {
