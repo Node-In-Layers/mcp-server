@@ -7,7 +7,11 @@ import {
 } from '@node-in-layers/core'
 import { createSimpleServer } from '@l4t/mcp-ai/simple-server/index.js'
 import { ServerTool } from '@l4t/mcp-ai/simple-server/types.js'
-import { ExpressMiddleware, McpTool } from '@l4t/mcp-ai/common/types.js'
+import {
+  ExpressRoute,
+  ExpressMiddleware,
+  McpTool,
+} from '@l4t/mcp-ai/common/types.js'
 import {
   generateMcpToolForModelOperation,
   ToolNameGenerator,
@@ -29,7 +33,7 @@ const create = (
   const tools: ServerTool[] = []
   const models: ServerTool[] = []
   const preRouteMiddleware: ExpressMiddleware[] = []
-
+  const additionalRoutes: ExpressRoute[] = []
   const addTool = (tool: ServerTool) => {
     // eslint-disable-next-line functional/immutable-data
     tools.push(tool)
@@ -150,6 +154,7 @@ const create = (
       {
         express: {
           preRouteMiddleware,
+          additionalRoutes,
         },
       }
     )
@@ -159,6 +164,11 @@ const create = (
   const addPreRouteMiddleware = (middleware: ExpressMiddleware) => {
     // eslint-disable-next-line functional/immutable-data
     preRouteMiddleware.push(middleware)
+  }
+
+  const addAdditionalRoute = (route: ExpressRoute) => {
+    // eslint-disable-next-line functional/immutable-data
+    additionalRoutes.push(route)
   }
 
   const start = async () => {
@@ -198,6 +208,7 @@ const create = (
     addModelCruds,
     addPreRouteMiddleware,
     addFeature,
+    addAdditionalRoute,
   }
 }
 

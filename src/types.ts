@@ -1,4 +1,8 @@
-import { ExpressMiddleware, McpTool } from '@l4t/mcp-ai/common/types.js'
+import {
+  ExpressRoute,
+  ExpressMiddleware,
+  McpTool,
+} from '@l4t/mcp-ai/common/types.js'
 import { ServerTool } from '@l4t/mcp-ai/simple-server/types.js'
 import {
   ServerHttpConfig,
@@ -54,6 +58,7 @@ export type McpServerMcp = Readonly<{
     featureFunc: (input: T) => Promise<any>,
     tool: McpTool
   ) => void
+  addAdditionalRoute: (route: ExpressRoute) => void
 }>
 
 export type McpServerMcpLayer = Readonly<{
