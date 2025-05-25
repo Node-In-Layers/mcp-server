@@ -44,9 +44,9 @@ export type McpServerConfig = Readonly<{
 export const McpNamespace = '@node-in-layers/mcp-server'
 
 export type McpServerMcp = Readonly<{
-  start: () => Promise<void>
+  start: (options?: AppOptions) => Promise<void>
   addTool: (tool: ServerTool) => void
-  getApp: () => Express
+  getApp: (options?: AppOptions) => Express
   addModelCruds: (
     modelCruds: ModelCrudsFunctions<any>,
     opts?: {
