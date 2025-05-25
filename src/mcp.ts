@@ -19,6 +19,7 @@ import {
 import { v4 as uuidv4 } from 'uuid'
 import { asyncMap } from 'modern-async'
 import {
+  AppOptions,
   McpServerMcp,
   McpServerConfig,
   McpContext,
@@ -141,7 +142,7 @@ const create = (
     }
   }
 
-  const _getServer = () => {
+  const _getServer = (options?: AppOptions) => {
     const allTools = [...tools, ...models].map(_wrapToolsWithLogger)
     const server = createSimpleServer(
       {
@@ -155,6 +156,7 @@ const create = (
         express: {
           preRouteMiddleware,
           additionalRoutes,
+          ...(options ? options : {}),
         },
       }
     )
@@ -171,13 +173,13 @@ const create = (
     additionalRoutes.push(route)
   }
 
-  const start = async () => {
-    const server = _getServer()
+  const start = async (options?: AppOptions) => {
+    const server = _getServer(options)
     await server.start()
   }
 
-  const getApp = () => {
-    const server = _getServer()
+  const getApp = (options?: AppOptions) => {
+    const server = _getServer(options)
     // @ts-ignore
     if (!server?.getApp) {
       throw new Error(`Server not http or sse`)

@@ -65,6 +65,13 @@ export type McpServerMcpLayer = Readonly<{
   [McpNamespace]: McpServerMcp
 }>
 
+export type AppOptions = Readonly<{
+  jsonBodyParser?: {
+    limit?: string
+    strict?: boolean
+  }
+}>
+
 export type McpContext<
   TConfig extends Config = Config,
   TFeatures extends object = object,
