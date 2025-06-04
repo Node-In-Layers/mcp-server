@@ -65,7 +65,7 @@
     "@node-in-layers/core": "^1.5.6",
     "express": "^5.1.0",
     "functional-models": "^3.0.16",
-    "functional-models-orm-mcp": "^3.0.6",
+    "functional-models-orm-mcp": "^3.1.2",
     "lodash": "^4.17.21",
     "modern-async": "^2.0.4",
     "uuid": "^11.1.0"
