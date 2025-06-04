@@ -91,7 +91,7 @@ const create = (
       {
         ...generateMcpToolForModelOperation(model, 'bulkInsert', opts),
         execute: async (input: any) => {
-          await cruds.bulkInsert(model, input.items)
+          await cruds.bulkInsert(input.items)
         },
       },
       {
