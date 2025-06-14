@@ -97,7 +97,7 @@ const create = (
       {
         ...generateMcpToolForModelOperation(model, 'bulkDelete', opts),
         execute: async (input: any) => {
-          await cruds.bulkDelete(input)
+          await cruds.bulkDelete(input.ids)
         },
       },
     ]
