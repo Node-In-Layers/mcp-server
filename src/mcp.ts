@@ -27,6 +27,7 @@ import {
   McpContext,
   McpNamespace,
 } from './types.js'
+import { ValidationError } from 'functional-models'
 
 const DEFAULT_RESPONSE_REQUEST_LOG_LEVEL = 'info'
 
@@ -219,6 +220,26 @@ const create = (
       return func(...inputs)
         .then(_formatResponse)
         .catch(error => {
+          if (error instanceof ValidationError) {
+            return {
+              isError: true,
+              content: [
+                {
+                  type: 'text',
+                  text: JSON.stringify({
+                    error: {
+                      code: 'VALIDATION_ERROR',
+                      message: 'Validation Error',
+                      details: {
+                        keysToErrors: error.keysToErrors,
+                        modelName: error.modelName,
+                      },
+                    },
+                  }),
+                },
+              ],
+            }
+          }
           const errorObj = createErrorObject(
             'UNCAUGHT_EXCEPTION',
             'An uncaught exception occurred while executing the feature.',
