@@ -224,7 +224,15 @@ const create = (
             'An uncaught exception occurred while executing the feature.',
             error
           )
-          return errorObj
+          return {
+            isError: true,
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(errorObj),
+              },
+            ],
+          }
         })
     }
 
