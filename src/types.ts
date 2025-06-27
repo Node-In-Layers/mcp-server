@@ -56,7 +56,7 @@ export type McpServerMcp = Readonly<{
   ) => void
   addPreRouteMiddleware: (middleware: ExpressMiddleware) => void
   addFeature: <T extends object = object, R extends object = object>(
-    featureFunc: (input: T) => Promise<Response<R>>,
+    featureFunc: (input: T) => Promise<Response<R | void>>,
     tool: McpTool
   ) => void
   addAdditionalRoute: (route: ExpressRoute) => void
