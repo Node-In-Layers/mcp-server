@@ -227,7 +227,7 @@ const create = (
     }
 
   const addFeature = <T extends object = object, R extends object = object>(
-    featureFunc: (input: T) => Promise<Response<R>>,
+    featureFunc: (input: T) => Promise<Response<R|void>>,
     tool: McpTool
   ) => {
     // eslint-disable-next-line functional/immutable-data
