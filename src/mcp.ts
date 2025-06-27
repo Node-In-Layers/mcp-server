@@ -207,7 +207,7 @@ const create = (
       content: [
         {
           type: 'text',
-          text: JSON.stringify(result),
+          text: result ? JSON.stringify(result) : '',
         },
       ],
     }
