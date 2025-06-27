@@ -191,14 +191,16 @@ const create = (
   }
 
   const _formatResponse = (result: Response<any>): CallToolResult => {
-    if ('error' in result) {
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify(result),
-          },
-        ],
+    if (typeof result === 'object') {
+      if ('error' in result) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(result),
+            },
+          ],
+        }
       }
     }
     return {
