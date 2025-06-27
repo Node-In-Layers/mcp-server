@@ -8,7 +8,7 @@ import {
   createErrorObject,
 } from '@node-in-layers/core'
 import { createSimpleServer } from '@l4t/mcp-ai/simple-server/index.js'
-import { ServerTool } from '@l4t/mcp-ai/simple-server/types.js'
+import { JsonAble, ServerTool } from '@l4t/mcp-ai/simple-server/types.js'
 import {
   ExpressRoute,
   ExpressMiddleware,
@@ -226,8 +226,11 @@ const create = (
         })
     }
 
-  const addFeature = <T extends object = object, R extends object = object>(
-    featureFunc: (input: T) => Promise<Response<R|void>>,
+  const addFeature = <
+    T extends object = object,
+    R extends JsonAble | void = void,
+  >(
+    featureFunc: (input: T) => Promise<Response<R>>,
     tool: McpTool
   ) => {
     // eslint-disable-next-line functional/immutable-data

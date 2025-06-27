@@ -20,6 +20,7 @@ import {
 } from '@node-in-layers/core'
 import { Express } from 'express'
 import { ToolNameGenerator } from 'functional-models-orm-mcp'
+import { JsonAble } from 'functional-models'
 
 type Connection =
   | ServerHttpConfig
@@ -55,8 +56,8 @@ export type McpServerMcp = Readonly<{
     }
   ) => void
   addPreRouteMiddleware: (middleware: ExpressMiddleware) => void
-  addFeature: <T extends object = object, R extends object = object>(
-    featureFunc: (input: T) => Promise<Response<R | void>>,
+  addFeature: <T extends object = object, R extends JsonAble | void = void>(
+    featureFunc: (input: T) => Promise<Response<R>>,
     tool: McpTool
   ) => void
   addAdditionalRoute: (route: ExpressRoute) => void
