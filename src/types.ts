@@ -16,6 +16,7 @@ import {
   LogLevelNames,
   LayerContext,
   ModelCrudsFunctions,
+  Response,
 } from '@node-in-layers/core'
 import { Express } from 'express'
 import { ToolNameGenerator } from 'functional-models-orm-mcp'
@@ -54,8 +55,8 @@ export type McpServerMcp = Readonly<{
     }
   ) => void
   addPreRouteMiddleware: (middleware: ExpressMiddleware) => void
-  addFeature: <T>(
-    featureFunc: (input: T) => Promise<any>,
+  addFeature: <T extends object = object, R extends object = object>(
+    featureFunc: (input: T) => Promise<Response<R>>,
     tool: McpTool
   ) => void
   addAdditionalRoute: (route: ExpressRoute) => void

@@ -1,9 +1,11 @@
+import { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import get from 'lodash/get.js'
 import {
   Config,
-  FeaturesContext,
   ModelCrudsFunctions,
   CrossLayerProps,
+  Response,
+  createErrorObject,
 } from '@node-in-layers/core'
 import { createSimpleServer } from '@l4t/mcp-ai/simple-server/index.js'
 import { ServerTool } from '@l4t/mcp-ai/simple-server/types.js'
@@ -60,25 +62,25 @@ const create = (
     const tools: ServerTool[] = [
       {
         ...generateMcpToolForModelOperation(model, 'save', opts),
-        execute: async (input: any) => {
+        execute: _execute(async (input: any) => {
           return cruds.create(input).then(x => x.toObj())
-        },
+        }),
       },
       {
         ...generateMcpToolForModelOperation(model, 'retrieve', opts),
-        execute: async ({ id }: { id: string }) => {
+        execute: _execute(async ({ id }: { id: string }) => {
           return cruds.retrieve(id).then(x => (x ? x.toObj() : null))
-        },
+        }),
       },
       {
         ...generateMcpToolForModelOperation(model, 'delete', opts),
-        execute: async ({ id }: { id: string }) => {
+        execute: _execute(async ({ id }: { id: string }) => {
           await cruds.delete(id)
-        },
+        }),
       },
       {
         ...generateMcpToolForModelOperation(model, 'search', opts),
-        execute: async (input: any) => {
+        execute: _execute(async (input: any) => {
           return cruds.search(input).then(async result => {
             const instances = await asyncMap(result.instances, y => y.toObj())
             return {
@@ -86,19 +88,19 @@ const create = (
               page: result.page,
             }
           })
-        },
+        }),
       },
       {
         ...generateMcpToolForModelOperation(model, 'bulkInsert', opts),
-        execute: async (input: any) => {
+        execute: _execute(async (input: any) => {
           await cruds.bulkInsert(input.items)
-        },
+        }),
       },
       {
         ...generateMcpToolForModelOperation(model, 'bulkDelete', opts),
-        execute: async (input: any) => {
+        execute: _execute(async (input: any) => {
           await cruds.bulkDelete(input.ids)
-        },
+        }),
       },
     ]
     return tools
@@ -188,18 +190,55 @@ const create = (
     return server.getApp()
   }
 
-  const addFeature = <T>(
-    featureFunc: (input: T) => Promise<any>,
+  const _formatResponse = (result: Response<any>): CallToolResult => {
+    if ('error' in result) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(result),
+          },
+        ],
+      }
+    }
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify(result),
+        },
+      ],
+    }
+  }
+
+  const _execute =
+    (func: (...inputs: any[]) => Promise<Response<any>>) =>
+    (...inputs: any[]) => {
+      return func(...inputs)
+        .then(_formatResponse)
+        .catch(error => {
+          const errorObj = createErrorObject(
+            'UNCAUGHT_EXCEPTION',
+            'An uncaught exception occurred while executing the feature.',
+            error
+          )
+          return errorObj
+        })
+    }
+
+  const addFeature = <T extends object = object, R extends object = object>(
+    featureFunc: (input: T) => Promise<Response<R>>,
     tool: McpTool
   ) => {
+    // eslint-disable-next-line functional/immutable-data
     tools.push({
       ...tool,
-      execute: async (input: any, crossLayerProps?: CrossLayerProps) => {
+      execute: _execute((input: any, crossLayerProps?: CrossLayerProps) => {
         return featureFunc(
           // @ts-ignore
           ...(Array.isArray(input) ? input : [input]).concat(crossLayerProps)
         )
-      },
+      }),
     })
   }
 
