@@ -192,7 +192,7 @@ const create = (
   }
 
   const _formatResponse = (result: Response<any>): CallToolResult => {
-    if ((result !== null) & (result !== undefined)) {
+    if ((result !== null) && (result !== undefined)) {
       if (typeof result === 'object' && 'error' in result) {
         return {
           content: [
