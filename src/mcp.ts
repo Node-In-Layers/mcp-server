@@ -36,6 +36,7 @@ const create = (
 ): McpServerMcp => {
   const tools: ServerTool[] = []
   const models: ServerTool[] = []
+  const sets: [string, any][] = []
   const preRouteMiddleware: ExpressMiddleware[] = []
   const additionalRoutes: ExpressRoute[] = []
   const addTool = (tool: ServerTool) => {
@@ -163,6 +164,12 @@ const create = (
         },
       }
     )
+    sets.forEach(([key, value]) => {
+      if ('set' in server) {
+        // @ts-ignore
+        server.set(key, value)
+      }
+    })
     return server
   }
 
@@ -192,7 +199,7 @@ const create = (
   }
 
   const _formatResponse = (result: Response<any>): CallToolResult => {
-    if ((result !== null) && (result !== undefined)) {
+    if (result !== null && result !== undefined) {
       if (typeof result === 'object' && 'error' in result) {
         return {
           content: [
@@ -276,6 +283,10 @@ const create = (
     })
   }
 
+  const set = (key: string, value: any) => {
+    sets.push([key, value])
+  }
+
   return {
     start,
     getApp,
@@ -284,6 +295,7 @@ const create = (
     addPreRouteMiddleware,
     addFeature,
     addAdditionalRoute,
+    set,
   }
 }
 

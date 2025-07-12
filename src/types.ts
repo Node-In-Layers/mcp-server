@@ -49,6 +49,7 @@ export type McpServerMcp = Readonly<{
   start: (options?: AppOptions) => Promise<void>
   addTool: (tool: ServerTool) => void
   getApp: (options?: AppOptions) => Express
+  set: (key: string, value: any) => void
   addModelCruds: (
     modelCruds: ModelCrudsFunctions<any>,
     opts?: {
