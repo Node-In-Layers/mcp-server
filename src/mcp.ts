@@ -119,12 +119,15 @@ const create = (
       const level =
         context.config[McpNamespace].logging?.requestLogLevel ||
         DEFAULT_RESPONSE_REQUEST_LOG_LEVEL
+      const requestData =
+        context.config[McpNamespace].logging?.requestLogGetData?.(input) || {}
       logger[level]('Request received', {
         method: 'POST',
         // @ts-ignore
         url: context.config[McpNamespace].server?.path || '/',
         tool: tool.name,
         body: input,
+        ...requestData,
       })
 
       const result = await tool.execute(input, {
@@ -133,8 +136,11 @@ const create = (
         },
       })
 
+      const responseData =
+        context.config[McpNamespace].logging?.responseLogGetData?.(result) || {}
       logger[level]('Request Response', {
         response: result,
+        ...responseData,
       })
 
       return result

@@ -37,8 +37,10 @@ export type McpServerConfig = Readonly<{
       connection: Connection
     }
     logging?: {
-      requestLogLevel: LogLevelNames
-      responseLogLevel: LogLevelNames
+      requestLogLevel?: LogLevelNames
+      responseLogLevel?: LogLevelNames
+      requestLogGetData?: (req: Request) => Record<string, any>
+      responseLogGetData?: (req: Request) => Record<string, any>
     }
   }
 }>
