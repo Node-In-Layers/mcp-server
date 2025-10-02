@@ -91,6 +91,53 @@ const create = (context: McpContext<Config, YourFeaturesLayer>) => {
 export { create }
 ```
 
+### Enabling Nested MCP Tools
+
+In scenarios where you want to expose a small, consistent surface area for AI agents, you can enable a nested toolset that allows
+agents to explore the domains, inspect available features and models, and invoke them dynamically.
+
+```typescript
+// /src/yourDomain/mcp.ts
+import {
+  McpContext,
+  McpNamespace,
+  NestedFeatureToolOptions,
+} from '@node-in-layers/mcp-server'
+
+const create = (context: McpContext) => {
+  // Optionally describe domains, features, or models and override tool names.
+  const options: NestedFeatureToolOptions = {
+    domainDescriptions: {
+      yourDomain: 'Business logic for the ACME workflows.',
+    },
+    featureDescriptions: {
+      yourDomain: {
+        createOrder: 'Creates an order from the provided payload.',
+      },
+    },
+    hiddenPaths: ['internalDomain', 'yourDomain.cruds.SecretModel'],
+  }
+
+  context.mcp[McpNamespace].enableNestedFeatureTools(options)
+
+  return {}
+}
+
+export { create }
+```
+
+The helper registers five MCP tools:
+
+- `list-domains` – returns the available feature domains and their descriptions.
+- `list-domain-features` – lists the feature functions inside a domain.
+- `list-domain-models` – lists the models inside a domain and the CRUD operations exposed for each one.
+- `execute-domain-feature` – executes a feature function by name.
+- `execute-model-function` – executes a CRUD operation for a model inside the selected domain.
+
+You can pass `hiddenPaths` to `NestedFeatureToolOptions` to omit domains, features, or model operations. Each entry uses dot notation
+(`domain`, `domain.feature`, `domain.cruds.Model`, or `domain.cruds.Model.operation`). Hidden entries are omitted from the listing
+tools and behave as if they do not exist when execution is attempted.
+
 ### Adding Models
 
 You can wrap your models with CRUDS functions and add them to the MCP server with the mcp layer.

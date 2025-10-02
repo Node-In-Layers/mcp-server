@@ -64,6 +64,7 @@ export type McpServerMcp = Readonly<{
     tool: McpTool
   ) => void
   addAdditionalRoute: (route: ExpressRoute) => void
+  enableNestedFeatureTools: (options?: NestedFeatureToolOptions) => void
 }>
 
 export type McpServerMcpLayer = Readonly<{
@@ -89,3 +90,17 @@ export type McpContext<
   }
 > &
   CommonContext<TConfig>
+
+export type NestedFeatureToolOptions = Readonly<{
+  domainDescriptions?: Readonly<Record<string, string>>
+  featureDescriptions?: Readonly<Record<string, Readonly<Record<string, string>>>>
+  modelDescriptions?: Readonly<Record<string, Readonly<Record<string, string>>>>
+  hiddenPaths?: ReadonlyArray<string>
+  toolNames?: Readonly<{
+    listDomains?: string
+    listDomainFeatures?: string
+    listDomainModels?: string
+    executeFeature?: string
+    executeModelFunction?: string
+  }>
+}>
