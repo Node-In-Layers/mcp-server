@@ -1,24 +1,25 @@
+import { randomUUID } from 'crypto'
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
-import get from 'lodash/get.js'
 import {
   Config,
   ModelCrudsFunctions,
-  CrossLayerProps,
   Response,
   createErrorObject,
+  isErrorObject,
 } from '@node-in-layers/core'
-import { createSimpleServer } from '@l4t/mcp-ai/simple-server/index.js'
-import { JsonAble, ServerTool } from '@l4t/mcp-ai/simple-server/types.js'
+import { JsonAble, OrmModel, ValidationError } from 'functional-models'
 import {
-  ExpressRoute,
-  ExpressMiddleware,
-  McpTool,
-} from '@l4t/mcp-ai/common/types.js'
-import {
-  generateMcpToolForModelOperation,
-  ToolNameGenerator,
+  createMcpToolBulkDelete,
+  createMcpToolBulkInsert,
+  createMcpToolDelete,
+  createMcpToolRetrieve,
+  createMcpToolSearch,
+  createMcpToolSave,
+  defaultModelTypeParser,
 } from 'functional-models-orm-mcp'
-import { v4 as uuidv4 } from 'uuid'
+import { createSimpleServer } from '@l4t/mcp-ai/simple-server/index.js'
+import { ServerTool } from '@l4t/mcp-ai/simple-server/types.js'
+import { ExpressRoute, ExpressMiddleware } from '@l4t/mcp-ai/common/types.js'
 import { asyncMap } from 'modern-async'
 import {
   AppOptions,
@@ -27,15 +28,72 @@ import {
   McpContext,
   McpNamespace,
 } from './types.js'
-import { ValidationError } from 'functional-models'
+import {
+  describeFeatureMcpTool,
+  listFeaturesMcpTool,
+  describeModelMcpTool,
+  listModelsMcpTool,
+  listDomainsMcpTool,
+  isNilAnnotatedFunction,
+  nilAnnotatedFunctionToOpenApi,
+  createOpenApiForNonNilAnnotatedFunction,
+} from './libs.js'
 
 const DEFAULT_RESPONSE_REQUEST_LOG_LEVEL = 'info'
+const createMcpResponse = <T extends JsonAble>(
+  result: T,
+  opts?: { isError?: boolean }
+): CallToolResult => {
+  const isError = opts?.isError || isErrorObject(result)
+  return {
+    ...(isError ? { isError: true } : {}),
+    content: [
+      {
+        type: 'text',
+        text: JSON.stringify(result !== undefined ? result : '""'),
+      },
+    ],
+  }
+}
+
+const createDomainNotFoundError = () =>
+  createErrorObject('DOMAIN_NOT_FOUND', 'Domain not found')
+const createModelNotFoundError = () =>
+  createErrorObject('MODEL_NOT_FOUND', 'Model not found')
+const createFeatureNotFoundError = () =>
+  createErrorObject('FEATURE_NOT_FOUND', 'Feature not found')
+const createModelsNotFoundError = () =>
+  createErrorObject('MODELS_NOT_FOUND', 'Models not found')
+
+const isDomainHidden = (hiddenPaths: Set<string>) => (domain: string) => {
+  return hiddenPaths.has(domain)
+}
+
+const areAllModelsHidden = (hiddenPaths: Set<string>) => (domain: string) => {
+  return hiddenPaths.has(`${domain}.cruds`)
+}
+
+const isFeatureHidden =
+  (hiddenPaths: Set<string>) => (domain: string, featureName: string) => {
+    return hiddenPaths.has(`${domain}.${featureName}`)
+  }
+
+const isModelHidden =
+  (hiddenPaths: Set<string>) => (domain: string, modelName: string) => {
+    return hiddenPaths.has(`${domain}.cruds.${modelName}`)
+  }
 
 const create = (
   context: McpContext<McpServerConfig & Config>
 ): McpServerMcp => {
+  const hiddenPaths = new Set([
+    '@node-in-layers/core',
+    '@node-in-layers/data',
+    '@node-in-layers/mcp-server',
+    ...(context.config[McpNamespace].hiddenPaths || []),
+  ])
+
   const tools: ServerTool[] = []
-  const models: ServerTool[] = []
   const sets: [string, any][] = []
   const preRouteMiddleware: ExpressMiddleware[] = []
   const additionalRoutes: ExpressRoute[] = []
@@ -44,73 +102,14 @@ const create = (
     tools.push(tool)
   }
 
-  const addModelCruds = (
-    cruds: ModelCrudsFunctions<any>,
-    opts?: {
-      nameGenerator: ToolNameGenerator
-    }
-  ) => {
-    // eslint-disable-next-line functional/immutable-data
-    models.push(..._createToolsForModelCruds(cruds, opts))
-  }
-
-  const _createToolsForModelCruds = (
-    cruds: ModelCrudsFunctions<any>,
-    opts?: {
-      nameGenerator: ToolNameGenerator
-    }
-  ): readonly ServerTool[] => {
-    const model = cruds.getModel()
-    const tools: ServerTool[] = [
-      {
-        ...generateMcpToolForModelOperation(model, 'save', opts),
-        execute: _execute(async (input: any) => {
-          return cruds.create(input).then(x => x.toObj())
-        }),
-      },
-      {
-        ...generateMcpToolForModelOperation(model, 'retrieve', opts),
-        execute: _execute(async ({ id }: { id: string }) => {
-          return cruds.retrieve(id).then(x => (x ? x.toObj() : null))
-        }),
-      },
-      {
-        ...generateMcpToolForModelOperation(model, 'delete', opts),
-        execute: _execute(async ({ id }: { id: string }) => {
-          await cruds.delete(id)
-        }),
-      },
-      {
-        ...generateMcpToolForModelOperation(model, 'search', opts),
-        execute: _execute(async (input: any) => {
-          return cruds.search(input).then(async result => {
-            const instances = await asyncMap(result.instances, y => y.toObj())
-            return {
-              instances,
-              page: result.page,
-            }
-          })
-        }),
-      },
-      {
-        ...generateMcpToolForModelOperation(model, 'bulkInsert', opts),
-        execute: _execute(async (input: any) => {
-          await cruds.bulkInsert(input.items)
-        }),
-      },
-      {
-        ...generateMcpToolForModelOperation(model, 'bulkDelete', opts),
-        execute: _execute(async (input: any) => {
-          await cruds.bulkDelete(input.ids)
-        }),
-      },
-    ]
-    return tools
-  }
+  const isDomainHiddenFunc = isDomainHidden(hiddenPaths)
+  const areAllModelsHiddenFunc = areAllModelsHidden(hiddenPaths)
+  const isFeatureHiddenFunc = isFeatureHidden(hiddenPaths)
+  const isModelHiddenFunc = isModelHidden(hiddenPaths)
 
   const _wrapToolsWithLogger = (tool: ServerTool): ServerTool => {
     const execute = async (input: any) => {
-      const requestId = uuidv4()
+      const requestId = randomUUID()
       const logger = context.log
         .getIdLogger('logRequest', 'requestId', requestId)
         .applyData({
@@ -152,8 +151,275 @@ const create = (
     }
   }
 
+  const _listDomainsTool = (): ServerTool => {
+    return {
+      ...listDomainsMcpTool(),
+      execute: _execute(async () => {
+        const domains = Object.entries(context.features).reduce(
+          (acc, [domainName]) => {
+            if (isDomainHiddenFunc(domainName)) {
+              return acc
+            }
+            const description = context.config[
+              '@node-in-layers/core'
+            ].apps.find(app => app.name === domainName)?.description
+            return acc.concat({
+              name: domainName,
+              ...(description ? { description } : {}),
+            })
+          },
+          [] as { name: string; description?: string }[]
+        )
+        return createMcpResponse(domains)
+      }),
+    }
+  }
+
+  const _describeFeatureTool = (): ServerTool => {
+    return {
+      ...describeFeatureMcpTool(),
+      execute: _execute(async (input: any) => {
+        const domain = input.domain
+        const featureName = input.featureName
+        const feature = context[domain]?.[featureName]
+        if (
+          !feature ||
+          isDomainHiddenFunc(domain) ||
+          isFeatureHiddenFunc(domain, featureName)
+        ) {
+          return createFeatureNotFoundError()
+        }
+        const openapi = isNilAnnotatedFunction(feature)
+          ? nilAnnotatedFunctionToOpenApi(feature.name, feature)
+          : createOpenApiForNonNilAnnotatedFunction(feature.name)
+        return createMcpResponse(openapi)
+      }),
+    }
+  }
+
+  const _listFeaturesTool = (): ServerTool => {
+    return {
+      ...listFeaturesMcpTool(),
+      execute: _execute(async (input: any) => {
+        const domain = input.domain
+        if (isDomainHiddenFunc(domain)) {
+          return createDomainNotFoundError()
+        }
+        const features = domain.features
+        const result = Object.entries(features).reduce(
+          (acc, [featureName, feature]) => {
+            if (typeof feature !== 'function') {
+              return acc
+            }
+            if (isFeatureHiddenFunc(domain, featureName)) {
+              return acc
+            }
+            const obj = {
+              name: featureName,
+              // @ts-ignore
+              ...(feature.schema?.description
+                ? // @ts-ignore
+                  { description: feature.schema.description }
+                : {}),
+            }
+            return acc.concat(obj)
+          },
+          [] as { name: string; description?: string }[]
+        )
+        return createMcpResponse(result)
+      }),
+    }
+  }
+
+  const _listModelsTool = (): ServerTool => {
+    return {
+      ...listModelsMcpTool(),
+      execute: _execute(async (input: any) => {
+        const domain = input.domain
+        if (isDomainHiddenFunc(domain) || areAllModelsHiddenFunc(domain)) {
+          return createDomainNotFoundError()
+        }
+        const models = context.features[domain].cruds as Record<
+          string,
+          ModelCrudsFunctions<any>
+        >
+        if (!models) {
+          return createMcpResponse(createModelsNotFoundError())
+        }
+        const result = Object.entries(models).reduce(
+          (acc, [modelName, model]) => {
+            if (isModelHiddenFunc(domain, modelName)) {
+              return acc
+            }
+            const description = model
+              .getModel()
+              .getModelDefinition().description
+            return acc.concat({
+              modelType: model.getModel().getName(),
+              ...(description ? { description } : {}),
+            })
+          },
+          [] as { modelType: string; description?: string }[]
+        )
+        return createMcpResponse(result)
+      }),
+    }
+  }
+
+  const _describeModelTool = (): ServerTool => {
+    return {
+      ...describeModelMcpTool(),
+      execute: _execute(async (input: any) => {
+        const domain = input.domain
+        if (isDomainHiddenFunc(domain)) {
+          return createDomainNotFoundError()
+        }
+        const { modelName } = defaultModelTypeParser(input.modelType)
+        const model = context.features[domain].cruds[modelName]
+        if (
+          !model ||
+          isModelHiddenFunc(domain, modelName) ||
+          areAllModelsHiddenFunc(domain)
+        ) {
+          return createModelNotFoundError()
+        }
+        const schema = model.getModel().getModelDefinition().schema
+        return createMcpResponse(schema)
+      }),
+    }
+  }
+
+  const _createMcpModelFunc = async (
+    modelFunc: (input: any, model: OrmModel<any>) => Promise<Response<JsonAble>>
+  ) => {
+    return _execute(async (input: any) => {
+      const modelType = input.modelType
+      const { domain, modelName } = defaultModelTypeParser(modelType)
+      if (isDomainHiddenFunc(domain)) {
+        return createDomainNotFoundError()
+      }
+      const model = context.features[domain].cruds[modelName]
+      if (
+        !model ||
+        isModelHiddenFunc(domain, modelName) ||
+        areAllModelsHiddenFunc(domain)
+      ) {
+        return createModelNotFoundError()
+      }
+      const result = await modelFunc(input, model.getModel()).catch(e => {
+        if (e instanceof ValidationError) {
+          return createErrorObject('VALIDATION_ERROR', 'Validation Error', {
+            details: {
+              keysToErrors: e.keysToErrors,
+              modelName: e.modelName,
+            },
+          })
+        }
+        return createErrorObject(
+          'UNCAUGHT_EXCEPTION',
+          'An uncaught exception occurred while executing the feature.',
+          e
+        )
+      })
+      if (isErrorObject(result)) {
+        return createMcpResponse(result, { isError: true })
+      }
+      return createMcpResponse(result)
+    })
+  }
+
+  const _createMcpToolSave = (): ServerTool => {
+    return {
+      ...createMcpToolSave(),
+      execute: _createMcpModelFunc(async (input: any, model) => {
+        const data = input.instance
+        const result = await model.save(data).catch(e => {
+          if (e instanceof ValidationError) {
+            return createErrorObject('VALIDATION_ERROR', 'Validation Error', e)
+          }
+          return createErrorObject(
+            'UNCAUGHT_EXCEPTION',
+            'An uncaught exception occurred while executing the feature.',
+            e
+          )
+        })
+        if (isErrorObject(result)) {
+          return result
+        }
+        return result.toObj()
+      }),
+    }
+  }
+
+  const _createMcpToolRetrieve = (): ServerTool => {
+    return {
+      ...createMcpToolRetrieve(),
+      execute: _createMcpModelFunc(async (input: any, model) => {
+        const result = await model.retrieve(input.id)
+        if (!result) {
+          return createModelNotFoundError()
+        }
+        return result.toObj()
+      }),
+    }
+  }
+
+  const _createMcpToolDelete = (): ServerTool => {
+    return {
+      ...createMcpToolDelete(),
+      execute: _createMcpModelFunc(async (input: any, model) => {
+        await model.delete(input.id)
+        return null
+      }),
+    }
+  }
+
+  const _createMcpToolSearch = (): ServerTool => {
+    return {
+      ...createMcpToolSearch(),
+      execute: _createMcpModelFunc(async (input: any, model) => {
+        const result = await model.search(input.query)
+        const instances = await asyncMap(result.instances, i => i.toObj())
+        return { instances, page: result.page }
+      }),
+    }
+  }
+
+  const _createMcpToolBulkInsert = (): ServerTool => {
+    return {
+      ...createMcpToolBulkInsert(),
+      execute: _createMcpModelFunc(async (input: any, model) => {
+        await model.bulkInsert(input.items)
+        return null
+      }),
+    }
+  }
+
+  const _createMcpToolBulkDelete = (): ServerTool => {
+    return {
+      ...createMcpToolBulkDelete(),
+      execute: _createMcpModelFunc(async (input: any, model) => {
+        await model.bulkDelete(input.ids)
+        return null
+      }),
+    }
+  }
+
   const _getServer = (options?: AppOptions) => {
-    const allTools = [...tools, ...models].map(_wrapToolsWithLogger)
+    const allTools = [
+      _listDomainsTool(),
+      _listFeaturesTool(),
+      _describeFeatureTool(),
+      _listModelsTool(),
+      _describeModelTool(),
+      _createMcpToolSave(),
+      _createMcpToolRetrieve(),
+      _createMcpToolDelete(),
+      _createMcpToolSearch(),
+      _createMcpToolBulkInsert(),
+      _createMcpToolBulkDelete(),
+      ...tools,
+    ].map(_wrapToolsWithLogger)
     const server = createSimpleServer(
       {
         name: context.config[McpNamespace].name || '@node-in-layers/mcp-server',
@@ -206,25 +472,11 @@ const create = (
 
   const _formatResponse = (result: Response<any>): CallToolResult => {
     if (result !== null && result !== undefined) {
-      if (typeof result === 'object' && 'error' in result) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(result),
-            },
-          ],
-        }
+      if (isErrorObject(result)) {
+        return createMcpResponse(result, { isError: true })
       }
     }
-    return {
-      content: [
-        {
-          type: 'text',
-          text: result ? JSON.stringify(result) : '\"\"',
-        },
-      ],
-    }
+    return createMcpResponse(result)
   }
 
   const _execute =
@@ -233,63 +485,18 @@ const create = (
       return func(...inputs)
         .then(_formatResponse)
         .catch(error => {
-          if (error instanceof ValidationError) {
-            return {
-              isError: true,
-              content: [
-                {
-                  type: 'text',
-                  text: JSON.stringify({
-                    error: {
-                      code: 'VALIDATION_ERROR',
-                      message: 'Validation Error',
-                      details: {
-                        keysToErrors: error.keysToErrors,
-                        modelName: error.modelName,
-                      },
-                    },
-                  }),
-                },
-              ],
-            }
-          }
-          const errorObj = createErrorObject(
-            'UNCAUGHT_EXCEPTION',
-            'An uncaught exception occurred while executing the feature.',
-            error
+          return _formatResponse(
+            createErrorObject(
+              'UNCAUGHT_EXCEPTION',
+              'An uncaught exception occurred while executing the feature.',
+              error
+            )
           )
-          return {
-            isError: true,
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify(errorObj),
-              },
-            ],
-          }
         })
     }
 
-  const addFeature = <
-    T extends object = object,
-    R extends JsonAble | void = void,
-  >(
-    featureFunc: (input: T) => Promise<Response<R>>,
-    tool: McpTool
-  ) => {
-    // eslint-disable-next-line functional/immutable-data
-    tools.push({
-      ...tool,
-      execute: _execute((input: any, crossLayerProps?: CrossLayerProps) => {
-        return featureFunc(
-          // @ts-ignore
-          ...(Array.isArray(input) ? input : [input]).concat(crossLayerProps)
-        )
-      }),
-    })
-  }
-
   const set = (key: string, value: any) => {
+    // eslint-disable-next-line functional/immutable-data
     sets.push([key, value])
   }
 
@@ -297,9 +504,7 @@ const create = (
     start,
     getApp,
     addTool,
-    addModelCruds,
     addPreRouteMiddleware,
-    addFeature,
     addAdditionalRoute,
     set,
   }
@@ -311,10 +516,10 @@ const create = (
  * @param opts Options for the tool name generator.
  * @returns A function that can be used to add the models to the MCP server.
  */
+/*
 const mcpModels = <TConfig extends Config = Config>(
   namespace: string,
-  context: McpContext<TConfig>,
-  opts?: { nameGenerator: ToolNameGenerator }
+  context: McpContext<TConfig>
 ) => {
   const mcpFunctions = context.mcp[McpNamespace]
   const namedFeatures = get(context, `features.${namespace}`)
@@ -330,8 +535,7 @@ const mcpModels = <TConfig extends Config = Config>(
         if (key === 'cruds') {
           Object.entries(value).forEach(([, modelCrudFuncs]) => {
             mcpFunctions.addModelCruds(
-              modelCrudFuncs as ModelCrudsFunctions<any>,
-              opts
+              modelCrudFuncs as ModelCrudsFunctions<any>
             )
           })
         }
@@ -342,5 +546,6 @@ const mcpModels = <TConfig extends Config = Config>(
 
   return {}
 }
+*/
 
-export { create, mcpModels }
+export { create }

@@ -1,8 +1,4 @@
-import {
-  ExpressRoute,
-  ExpressMiddleware,
-  McpTool,
-} from '@l4t/mcp-ai/common/types.js'
+import { ExpressRoute, ExpressMiddleware } from '@l4t/mcp-ai/common/types.js'
 import { ServerTool } from '@l4t/mcp-ai/simple-server/types.js'
 import {
   ServerHttpConfig,
@@ -10,16 +6,8 @@ import {
   ServerSseConfig,
   ServerStatelessHttpConfig,
 } from '@l4t/mcp-ai'
-import {
-  Config,
-  CommonContext,
-  LogLevelNames,
-  LayerContext,
-  ModelCrudsFunctions,
-  Response,
-} from '@node-in-layers/core'
+import { Config, LogLevelNames, LayerContext } from '@node-in-layers/core'
 import { Express } from 'express'
-import { ToolNameGenerator } from 'functional-models-orm-mcp'
 import { JsonAble } from 'functional-models'
 
 type Connection =
@@ -28,18 +16,61 @@ type Connection =
   | ServerSseConfig
   | ServerStatelessHttpConfig
 
+/**
+ * Configuration for the MCP server.
+ * @interface
+ */
 export type McpServerConfig = Readonly<{
   [McpNamespace]: {
+    /**
+     * The name of the MCP server.
+     */
     name?: string
+    /**
+     * The version of the MCP server.
+     */
     version?: string
+    /**
+     * Whether the MCP server is stateless.
+     */
     stateless?: boolean
+    /**
+     * The server configuration.
+     */
     server: {
+      /**
+       * Connection configuration.
+       */
       connection: Connection
     }
+    /**
+     * Dot paths, to hide from the server.
+     * Example:
+     * myDomain - hides an entire domain.
+     * myDomain.myFeature - hides a feature.
+     * myDomain.cruds - hides ALL models of the domain
+     * myDomain.cruds.MyModel - hides a specific model
+     */
+    hiddenPaths?: string[]
+    /**
+     * Logging configuration.
+     */
     logging?: {
+      /**
+       * The log level for requests.
+       */
       requestLogLevel?: LogLevelNames
+      /**
+       * The log level for responses.
+       */
       responseLogLevel?: LogLevelNames
+      /**
+       * The data to get for requests.
+       */
       requestLogGetData?: (req: Request) => Record<string, any>
+      /**
+       * The data to get for responses.
+       */
       responseLogGetData?: (req: Request) => Record<string, any>
     }
   }
@@ -52,17 +83,7 @@ export type McpServerMcp = Readonly<{
   addTool: (tool: ServerTool) => void
   getApp: (options?: AppOptions) => Express
   set: (key: string, value: any) => void
-  addModelCruds: (
-    modelCruds: ModelCrudsFunctions<any>,
-    opts?: {
-      nameGenerator: ToolNameGenerator
-    }
-  ) => void
   addPreRouteMiddleware: (middleware: ExpressMiddleware) => void
-  addFeature: <T extends object = object, R extends JsonAble | void = void>(
-    featureFunc: (input: T) => Promise<Response<R>>,
-    tool: McpTool
-  ) => void
   addAdditionalRoute: (route: ExpressRoute) => void
 }>
 
@@ -87,5 +108,11 @@ export type McpContext<
     features: TFeatures
     mcp: McpServerMcpLayer & TMcpLayer
   }
-> &
-  CommonContext<TConfig>
+>
+
+export type OpenApiFunctionDescription = Readonly<{
+  name: string
+  description?: string
+  input: Record<string, JsonAble>
+  output: Record<string, JsonAble>
+}>
