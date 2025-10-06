@@ -79,7 +79,10 @@ export type McpServerConfig = Readonly<{
 export const McpNamespace = '@node-in-layers/mcp-server'
 
 export type McpServerMcp = Readonly<{
-  start: (options?: AppOptions) => Promise<void>
+  start: <T extends McpServerConfig & Config>(
+    systemContext: LayerContext<T, any>,
+    options?: AppOptions
+  ) => Promise<void>
   addTool: (tool: ServerTool) => void
   getApp: (options?: AppOptions) => Express
   set: (key: string, value: any) => void

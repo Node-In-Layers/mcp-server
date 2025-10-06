@@ -1,5 +1,11 @@
-import { McpTool } from '@l4t/mcp-ai/common/types.js'
-import { NilAnnotatedFunction } from '@node-in-layers/core'
+import {
+  createErrorObject,
+  isErrorObject,
+  NilAnnotatedFunction,
+  Response,
+} from '@node-in-layers/core'
+import { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
+import { JsonAble } from 'functional-models'
 import { OpenApiFunctionDescription } from './types.js'
 
 export const isNilAnnotatedFunction = (
@@ -9,139 +15,6 @@ export const isNilAnnotatedFunction = (
     return true
   }
   return false
-}
-
-export const describeFeatureMcpTool = (): McpTool => {
-  return {
-    name: 'describe_feature',
-    description: 'Gets the schema of a given feature',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        domain: { type: 'string' },
-        featureName: { type: 'string' },
-      },
-      required: ['domain', 'featureName'],
-    },
-    outputSchema: {
-      type: 'object',
-      properties: {
-        schema: { type: 'object' },
-      },
-    },
-  }
-}
-
-export const listFeaturesMcpTool = (): McpTool => {
-  return {
-    name: 'list_features',
-    description: 'Gets a list of features for a given domain',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        domain: { type: 'string' },
-      },
-      required: ['domain'],
-    },
-    outputSchema: {
-      type: 'object',
-      properties: {
-        features: {
-          type: 'array',
-          // @ts-ignore
-          items: {
-            type: 'object',
-            required: ['name'],
-            properties: {
-              name: { type: 'string' },
-              description: { type: 'string' },
-            },
-          },
-        },
-      },
-    },
-  }
-}
-
-export const describeModelMcpTool = (): McpTool => {
-  return {
-    name: 'describe_model',
-    description: 'Gets the schema of a given model',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        domain: { type: 'string' },
-        modelType: { type: 'string' },
-      },
-      required: ['domain', 'modelType'],
-    },
-    outputSchema: {
-      type: 'object',
-      // @ts-ignore
-      additionalProperties: true,
-    },
-  }
-}
-
-export const listModelsMcpTool = (): McpTool => {
-  return {
-    name: 'list_models',
-    description:
-      'Gets a list of models for a given domain and their description.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        domain: { type: 'string' },
-      },
-      required: ['domain'],
-    },
-    outputSchema: {
-      type: 'object',
-      properties: {
-        models: {
-          type: 'array',
-          // @ts-ignore
-          items: {
-            type: 'object',
-            required: ['modelType'],
-            properties: {
-              modelType: { type: 'string' },
-              description: { type: 'string' },
-            },
-          },
-        },
-      },
-    },
-  }
-}
-
-export const listDomainsMcpTool = (): McpTool => {
-  return {
-    name: 'list_domains',
-    description:
-      'Gets a list of domains on the system, including their descriptions.',
-    inputSchema: {
-      type: 'object',
-      properties: {},
-    },
-    outputSchema: {
-      type: 'object',
-      properties: {
-        domains: {
-          type: 'array',
-          // @ts-ignore
-          items: {
-            type: 'object',
-            required: ['name'],
-            properties: {
-              name: { type: 'string' },
-              description: { type: 'string' },
-            },
-          },
-        },
-      },
-    },
-  }
 }
 
 const _defOf = (schema: any) => (schema?._zod?.def ?? schema?._def) as any
@@ -499,3 +372,73 @@ export const nilAnnotatedFunctionToOpenApi = (
     output,
   }
 }
+
+export const createMcpResponse = <T extends JsonAble>(
+  result: T,
+  opts?: { isError?: boolean }
+): CallToolResult => {
+  const isError = opts?.isError || isErrorObject(result)
+  return {
+    ...(isError ? { isError: true } : {}),
+    content: [
+      {
+        type: 'text',
+        text: JSON.stringify(result !== undefined ? result : '""'),
+      },
+    ],
+  }
+}
+
+export const createDomainNotFoundError = () =>
+  createErrorObject('DOMAIN_NOT_FOUND', 'Domain not found')
+export const createModelNotFoundError = () =>
+  createErrorObject('MODEL_NOT_FOUND', 'Model not found')
+export const createFeatureNotFoundError = () =>
+  createErrorObject('FEATURE_NOT_FOUND', 'Feature not found')
+export const createModelsNotFoundError = () =>
+  createErrorObject('MODELS_NOT_FOUND', 'Models not found')
+
+export const isDomainHidden =
+  (hiddenPaths: Set<string>) => (domain: string) => {
+    return hiddenPaths.has(domain)
+  }
+
+export const areAllModelsHidden =
+  (hiddenPaths: Set<string>) => (domain: string) => {
+    return hiddenPaths.has(`${domain}.cruds`)
+  }
+
+export const isFeatureHidden =
+  (hiddenPaths: Set<string>) => (domain: string, featureName: string) => {
+    return hiddenPaths.has(`${domain}.${featureName}`)
+  }
+
+export const isModelHidden =
+  (hiddenPaths: Set<string>) => (domain: string, modelName: string) => {
+    return hiddenPaths.has(`${domain}.cruds.${modelName}`)
+  }
+
+const _formatResponse = (result: Response<any>): CallToolResult => {
+  if (result !== null && result !== undefined) {
+    if (isErrorObject(result)) {
+      return createMcpResponse(result, { isError: true })
+    }
+  }
+  return createMcpResponse(result)
+}
+
+export const commonMcpExecute =
+  (func: (...inputs: any[]) => Promise<Response<any>>) =>
+  (...inputs: any[]) => {
+    return func(...inputs)
+      .then(_formatResponse)
+      .catch(error => {
+        return _formatResponse(
+          createErrorObject(
+            'UNCAUGHT_EXCEPTION',
+            'An uncaught exception occurred while executing the feature.',
+            error
+          )
+        )
+      })
+  }
