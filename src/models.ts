@@ -140,11 +140,16 @@ export const create = <TConfig extends McpServerConfig & Config>(
         if (isDomainHiddenFunc(domain)) {
           return createDomainNotFoundError()
         }
-        const { modelName } = defaultModelTypeParser(input.modelType)
-        const model = context.features[domain].cruds[modelName]
+        const { pluralName, namespace } = defaultModelTypeParser(
+          input.modelType
+        )
+        if (!pluralName || !namespace) {
+          return createModelNotFoundError()
+        }
+        const model = context.features[domain].cruds[pluralName]
         if (
           !model ||
-          isModelHiddenFunc(domain, modelName) ||
+          isModelHiddenFunc(domain, pluralName) ||
           areAllModelsHiddenFunc(domain)
         ) {
           return createModelNotFoundError()
@@ -160,15 +165,18 @@ export const create = <TConfig extends McpServerConfig & Config>(
   ) => {
     return commonMcpExecute(async (input: any) => {
       const modelType = input.modelType
-      const { domain, modelName } = defaultModelTypeParser(modelType)
-      if (isDomainHiddenFunc(domain)) {
+      const { namespace, pluralName } = defaultModelTypeParser(modelType)
+      if (isDomainHiddenFunc(namespace)) {
         return createDomainNotFoundError()
       }
-      const model = context.features[domain].cruds[modelName]
+      if (!pluralName) {
+        return createModelNotFoundError()
+      }
+      const model = context.features[namespace].cruds[pluralName]
       if (
         !model ||
-        isModelHiddenFunc(domain, modelName) ||
-        areAllModelsHiddenFunc(domain)
+        isModelHiddenFunc(namespace, pluralName) ||
+        areAllModelsHiddenFunc(namespace)
       ) {
         return createModelNotFoundError()
       }
