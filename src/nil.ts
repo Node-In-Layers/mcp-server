@@ -162,11 +162,11 @@ export const create = <TConfig extends McpServerConfig & Config>(
         if (isDomainHiddenFunc(domain)) {
           return createDomainNotFoundError()
         }
-        const features = context[domain].features
-        if (!features) {
-          return createMcpResponse({features: []})
+        const features = context.features
+        if (!features || !context.features[domain]) {
+          return createMcpResponse({ features: [] })
         }
-        const result = Object.entries(features).reduce(
+        const result = Object.entries(features[domain]).reduce(
           (acc, [featureName, feature]) => {
             if (typeof feature !== 'function') {
               return acc
