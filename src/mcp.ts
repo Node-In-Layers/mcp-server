@@ -289,7 +289,7 @@ const create = (
     }
   }
 
-  const _createMcpModelFunc = async (
+  const _createMcpModelFunc = (
     modelFunc: (input: any, model: OrmModel<any>) => Promise<Response<JsonAble>>
   ) => {
     return _execute(async (input: any) => {
