@@ -140,7 +140,7 @@ const _objectFromShape = (shape: Record<string, any>, desc?: string) => {
         fieldType === 'default' ||
         fieldType === 'ZodOptional' ||
         fieldType === 'ZodDefault'
-      const nextProps = { ...acc.properties, [key]: _zodToJson(field) }
+      const nextProps = { ...acc.properties, [key]: zodToJson(field) }
       const nextReq = isOptional ? acc.required : acc.required.concat(key)
       return { properties: nextProps, required: nextReq }
     },
@@ -183,7 +183,7 @@ const _zodToJsonHandlers: Record<
     const item = _arrayItems(defAny)
     return {
       type: 'array',
-      items: _zodToJson(item),
+      items: zodToJson(item),
       ...(desc ? { description: desc } : {}),
     }
   },
@@ -191,7 +191,7 @@ const _zodToJsonHandlers: Record<
     const valueType = _recordValueType(defAny)
     return {
       type: 'object',
-      additionalProperties: _zodToJson(valueType),
+      additionalProperties: zodToJson(valueType),
       ...(desc ? { description: desc } : {}),
     }
   },
@@ -204,7 +204,7 @@ const _zodToJsonHandlers: Record<
   union: (defAny, _s, desc) => {
     const options = (defAny?.options ?? []) as readonly any[]
     return {
-      anyOf: options.map(_zodToJson),
+      anyOf: options.map(zodToJson),
       ...(desc ? { description: desc } : {}),
     }
   },
@@ -226,7 +226,7 @@ const _zodToJsonHandlers: Record<
   // },
 }
 
-const _zodToJson = (schema: any): Record<string, any> => {
+export const zodToJson = (schema: any): Record<string, any> => {
   // c8 ignore next 2
   if (!schema) {
     return {}
@@ -344,8 +344,8 @@ export const nilAnnotatedFunctionToOpenApi = (
 
   const argsSchema = _getFirstArgSchema(schema)
 
-  const argsJson = argsSchema ? _zodToJson(argsSchema) : {}
-  const outputJson = returnsSchema ? _zodToJson(returnsSchema) : {}
+  const argsJson = argsSchema ? zodToJson(argsSchema) : {}
+  const outputJson = returnsSchema ? zodToJson(returnsSchema) : {}
 
   const inputObject = {
     type: 'object',
