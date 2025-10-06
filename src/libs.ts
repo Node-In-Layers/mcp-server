@@ -120,6 +120,10 @@ export const listDomainsMcpTool = (): McpTool => {
     name: 'list_domains',
     description:
       'Gets a list of domains on the system, including their descriptions.',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+    },
     outputSchema: {
       type: 'object',
       properties: {
