@@ -1,8 +1,16 @@
 import { assert } from 'chai'
 import { describe, it } from 'mocha'
-import { annotatedFunction, CrossLayerProps } from '@node-in-layers/core'
+import {
+  annotatedFunction,
+  createErrorObject,
+  CrossLayerProps,
+} from '@node-in-layers/core'
 import z from 'zod'
-import { nilAnnotatedFunctionToOpenApi } from '../../src/libs.js'
+import {
+  commonMcpExecute,
+  createMcpResponse,
+  nilAnnotatedFunctionToOpenApi,
+} from '../../src/libs.js'
 
 const errorObjectJson = {
   type: 'object',
@@ -26,6 +34,88 @@ const errorObjectJson = {
 }
 
 describe('/src/libs.ts', () => {
+  describe('#commonMcpExecute()', () => {
+    it('should return the same response if its already an MCP response', async () => {
+      const fn = () => Promise.resolve(createMcpResponse({}))
+      const actual = await commonMcpExecute(fn)()
+      const expected = {
+        content: [{ type: 'text', text: '{}' }],
+      }
+      // @ts-ignore
+      assert.deepEqual(actual, expected)
+    })
+    it('should format properly format a response when its just an object', async () => {
+      const fn = () => Promise.resolve({})
+      const actual = await commonMcpExecute(fn)()
+      const expected = {
+        content: [{ type: 'text', text: '{}' }],
+      }
+      // @ts-ignore
+      assert.deepEqual(actual, expected)
+    })
+    it('should format properly format a response when its an error object', async () => {
+      const fn = () =>
+        Promise.resolve(createErrorObject('TEST_ERROR', 'Test error'))
+      const actual = await commonMcpExecute(fn)()
+      const expected = {
+        isError: true,
+        content: [
+          {
+            type: 'text',
+            text: '{"error":{"code":"TEST_ERROR","message":"Test error"}}',
+          },
+        ],
+      }
+      // @ts-ignore
+      assert.deepEqual(actual, expected)
+    })
+    it('should format properly format a response when its an error object with a cause', async () => {
+      const fn = () =>
+        Promise.resolve(
+          createErrorObject('TEST_ERROR', 'Test error', new Error('Test cause'))
+        )
+      const actual = await commonMcpExecute(fn)()
+      const expected = {
+        isError: true,
+        content: [
+          {
+            type: 'text',
+            text: '{"error":{"code":"TEST_ERROR","message":"Test error","details":"Test cause","errorDetails":"Error: Test cause"}}',
+          },
+        ],
+      }
+      // @ts-ignore
+      assert.deepEqual(actual, expected)
+    })
+    it('should properly format if there is an exception thrown', async () => {
+      const fn = () => Promise.reject(new Error('Test exception'))
+      const actual = await commonMcpExecute(fn)()
+      const expected = {
+        isError: true,
+        content: [
+          {
+            type: 'text',
+            text: '{"error":{"code":"UNCAUGHT_EXCEPTION","message":"An uncaught exception occurred while executing the feature."}}',
+          },
+        ],
+      }
+    })
+    it('should properly format if there is an exception thrown', async () => {
+      const fn = () => Promise.reject(new Error('Test exception'))
+      const actual = await commonMcpExecute(fn)()
+      const expected = {
+        isError: true,
+        content: [
+          {
+            type: 'text',
+            text: '{"error":{"code":"UNCAUGHT_EXCEPTION","message":"An uncaught exception occurred while executing the feature.","details":"Test exception","errorDetails":"Error: Test exception"}}',
+          },
+        ],
+      }
+      // @ts-ignore
+      assert.deepEqual(actual, expected)
+    })
+  })
   describe('#nilAnnotatedFunctionToOpenApi()', () => {
     it('should convert a realworld function to an OpenAPI function description', () => {
       const myFunc = annotatedFunction(

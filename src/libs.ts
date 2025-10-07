@@ -1,3 +1,4 @@
+import get from 'lodash/get.js'
 import {
   createErrorObject,
   isErrorObject,
@@ -424,7 +425,21 @@ export const isModelHidden =
     return hiddenPaths.has(`${domain}.cruds.${modelName}`)
   }
 
+const isMcpResponse = (result: any): boolean => {
+  if (!result) {
+    return false
+  }
+  const data = get(result, 'content[0].type')
+  if (data === undefined) {
+    return false
+  }
+  return data === 'text'
+}
+
 const _formatResponse = (result: Response<any>): CallToolResult => {
+  if (isMcpResponse(result)) {
+    return result
+  }
   if (result !== null && result !== undefined) {
     if (isErrorObject(result)) {
       return createMcpResponse(result, { isError: true })
