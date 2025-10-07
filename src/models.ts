@@ -207,7 +207,7 @@ export const create = <TConfig extends McpServerConfig & Config>(
       ...createMcpToolSave(),
       execute: _createMcpModelFunc(async (input: any, model) => {
         const data = input.instance
-        const result = await model.save(data).catch(e => {
+        const result = await model.save(model.create(data)).catch(e => {
           if (e instanceof ValidationError) {
             return createErrorObject('VALIDATION_ERROR', 'Validation Error', e)
           }
