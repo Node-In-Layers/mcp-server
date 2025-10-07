@@ -1,11 +1,92 @@
 import { assert } from 'chai'
 import { describe, it } from 'mocha'
-import { annotatedFunction } from '@node-in-layers/core'
+import { annotatedFunction, CrossLayerProps } from '@node-in-layers/core'
 import z from 'zod'
 import { nilAnnotatedFunctionToOpenApi } from '../../src/libs.js'
 
+const errorObjectJson = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    error: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        cause: {},
+        code: { type: 'string' },
+        data: { type: 'object', additionalProperties: {} },
+        details: { type: 'string' },
+        message: { type: 'string' },
+        trace: { type: 'string' },
+      },
+      required: ['code', 'message'],
+    },
+  },
+  required: ['error'],
+}
+
 describe('/src/libs.ts', () => {
   describe('#nilAnnotatedFunctionToOpenApi()', () => {
+    it('should convert a realworld function to an OpenAPI function description', () => {
+      const myFunc = annotatedFunction(
+        {
+          description: 'A description to convert',
+          args: z.object({
+            organizationId: z.string(),
+            from: z.string().optional(),
+            to: z.string().optional(),
+            daysBack: z.number().optional(),
+          }),
+        },
+        async (params, crossLayerProps?: CrossLayerProps) => {
+          return
+        }
+      )
+      const actual = nilAnnotatedFunctionToOpenApi('myFunc', myFunc)
+      const expected = {
+        name: 'myFunc',
+        description: 'A description to convert',
+        input: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            args: {
+              type: 'object',
+              additionalProperties: false,
+              properties: {
+                organizationId: { type: 'string' },
+                from: { type: 'string' },
+                to: { type: 'string' },
+                daysBack: { type: 'number' },
+              },
+              required: ['organizationId'],
+            },
+            crossLayerProps: {
+              type: 'object',
+              additionalProperties: true,
+              properties: {
+                logging: {
+                  type: 'object',
+                  additionalProperties: true,
+                  properties: {
+                    ids: {
+                      type: 'array',
+                      items: {
+                        type: 'object',
+                        additionalProperties: { type: 'string' },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          required: ['args'],
+        },
+        output: { anyOf: [{ type: 'null' }, errorObjectJson] },
+      }
+      assert.deepEqual(actual, expected)
+    })
     it('should convert a nil annotated function to an OpenAPI function description', () => {
       const fn = annotatedFunction(
         {
@@ -59,7 +140,17 @@ describe('/src/libs.ts', () => {
           },
           required: ['args'],
         },
-        output: { out: { type: 'string' } },
+        output: {
+          anyOf: [
+            {
+              type: 'object',
+              additionalProperties: false,
+              properties: { out: { type: 'string' } },
+              required: ['out'],
+            },
+            errorObjectJson,
+          ],
+        },
       }
       assert.deepEqual(openApi, expected)
     })
@@ -241,31 +332,44 @@ describe('/src/libs.ts', () => {
           required: ['args'],
         },
         output: {
-          complex: {
-            type: 'object',
-            additionalProperties: false,
-            properties: {
-              innerObj: {
-                type: 'object',
-                additionalProperties: false,
-                properties: {
-                  name: { type: 'string' },
-                  innerArray: { type: 'array', items: { type: 'string' } },
-                  innerEnum: { type: 'string', enum: ['a', 'b', 'c'] },
-                  innerLiteral: { type: 'string', const: 'a' },
-                  innerNumber: { type: 'number' },
+          anyOf: [
+            {
+              type: 'object',
+              additionalProperties: false,
+              properties: {
+                complex: {
+                  type: 'object',
+                  additionalProperties: false,
+                  properties: {
+                    innerObj: {
+                      type: 'object',
+                      additionalProperties: false,
+                      properties: {
+                        name: { type: 'string' },
+                        innerArray: {
+                          type: 'array',
+                          items: { type: 'string' },
+                        },
+                        innerEnum: { type: 'string', enum: ['a', 'b', 'c'] },
+                        innerLiteral: { type: 'string', const: 'a' },
+                        innerNumber: { type: 'number' },
+                      },
+                      required: [
+                        'name',
+                        'innerArray',
+                        'innerEnum',
+                        'innerLiteral',
+                        'innerNumber',
+                      ],
+                    },
+                  },
+                  required: ['innerObj'],
                 },
-                required: [
-                  'name',
-                  'innerArray',
-                  'innerEnum',
-                  'innerLiteral',
-                  'innerNumber',
-                ],
               },
+              required: ['complex'],
             },
-            required: ['innerObj'],
-          },
+            errorObjectJson,
+          ],
         },
       }
       assert.deepEqual(actual, expected)
@@ -276,7 +380,6 @@ describe('/src/libs.ts', () => {
         {
           description: 'No-op function',
           args: z.object({}),
-          returns: z.undefined(),
         },
         () => undefined
       )
@@ -315,7 +418,7 @@ describe('/src/libs.ts', () => {
           },
           required: ['args'],
         },
-        output: { type: 'null' },
+        output: { anyOf: [{ type: 'null' }, errorObjectJson] },
       }
       assert.deepEqual(actual, expected)
     })

@@ -59,6 +59,8 @@ const _normalizeType = (t: string | undefined) => {
       return 'tuple'
     case 'ZodUndefined':
       return 'undefined'
+    case 'ZodVoid':
+      return 'undefined'
     // c8 ignore next 3: unused mappings in current paths
     // case 'ZodUnknown':
     //   return 'unknown'
@@ -240,6 +242,10 @@ export const zodToJson = (schema: any): Record<string, any> => {
   const handler = _zodToJsonHandlers[t]
   if (handler) {
     return handler(defAny, s, desc)
+  }
+  // Map void/undefined schemas to OpenAPI null
+  if (t === 'undefined' || t === 'void') {
+    return { type: 'null', ...(desc ? { description: desc } : {}) }
   }
   // c8 ignore next: fallback defensive return
   return {}
