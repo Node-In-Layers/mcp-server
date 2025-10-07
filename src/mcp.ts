@@ -89,6 +89,7 @@ const create = (
       nilMcp.listDomains(),
       nilMcp.listFeatures(),
       nilMcp.describeFeature(),
+      nilMcp.executeFeature(),
       ...tools,
     ].map(_wrapToolsWithLogger)
     const server = createSimpleServer(

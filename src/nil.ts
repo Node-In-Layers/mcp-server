@@ -1,4 +1,9 @@
-import { Config, LayerContext } from '@node-in-layers/core'
+import {
+  Config,
+  createErrorObject,
+  isErrorObject,
+  LayerContext,
+} from '@node-in-layers/core'
 import { McpTool } from '@l4t/mcp-ai/common/types.js'
 import { ServerTool } from '@l4t/mcp-ai/simple-server/types.js'
 import {
@@ -11,6 +16,7 @@ import {
   isDomainHidden,
   isFeatureHidden,
   commonMcpExecute,
+  crossLayerPropsOpenApi,
 } from './libs.js'
 import { McpNamespace, McpServerConfig } from './types.js'
 
@@ -62,6 +68,28 @@ const listFeaturesMcpTool = (): McpTool => {
           },
         },
       },
+    },
+  }
+}
+
+const executeFeatureMcpTool = (): McpTool => {
+  return {
+    name: 'execute_feature',
+    description: 'Executes a given feature',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        domain: { type: 'string' },
+        featureName: { type: 'string' },
+        // @ts-ignore
+        args: { type: 'object', additionalProperties: true },
+        crossLayerProps: crossLayerPropsOpenApi(),
+      },
+      required: ['domain', 'featureName', 'args'],
+    },
+    outputSchema: {
+      type: 'object',
+      properties: { result: { type: 'string' } },
     },
   }
 }
@@ -191,9 +219,41 @@ export const create = <TConfig extends McpServerConfig & Config>(
     }
   }
 
+  const _executeFeatureTool = (): ServerTool => {
+    return {
+      ...executeFeatureMcpTool(),
+      execute: commonMcpExecute(async (input: any) => {
+        const domain = input.domain
+        const featureName = input.featureName
+        const feature = context.features[domain]?.[featureName]
+        if (
+          !feature ||
+          isDomainHiddenFunc(domain) ||
+          isFeatureHiddenFunc(domain, featureName)
+        ) {
+          return createFeatureNotFoundError()
+        }
+        const result = await feature(input.args, input.crossLayerProps).catch(
+          e => {
+            if (isErrorObject(e)) {
+              return e
+            }
+            return createErrorObject(
+              'UNCAUGHT_EXCEPTION',
+              'An uncaught exception occurred while executing the feature.',
+              e
+            )
+          }
+        )
+        return createMcpResponse(result)
+      }),
+    }
+  }
+
   return {
     listDomains: _listDomainsTool,
     describeFeature: _describeFeatureTool,
     listFeatures: _listFeaturesTool,
+    executeFeature: _executeFeatureTool,
   }
 }

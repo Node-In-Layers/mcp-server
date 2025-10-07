@@ -260,7 +260,7 @@ export const zodToJson = (schema: any): Record<string, any> => {
  *   }
  * }
  */
-const _crossLayerPropsOpenApi = (): Record<string, any> => ({
+export const crossLayerPropsOpenApi = (): any => ({
   type: 'object',
   additionalProperties: true,
   properties: {
@@ -325,7 +325,7 @@ export const createOpenApiForNonNilAnnotatedFunction = (name: string) => {
         args: {
           type: 'object',
         },
-        crossLayerProps: _crossLayerPropsOpenApi(),
+        crossLayerProps: crossLayerPropsOpenApi(),
       },
       required: ['args'],
     },
@@ -359,7 +359,7 @@ export const nilAnnotatedFunctionToOpenApi = (
     additionalProperties: false,
     properties: {
       args: argsJson,
-      crossLayerProps: _crossLayerPropsOpenApi(),
+      crossLayerProps: crossLayerPropsOpenApi(),
     },
     required: ['args'],
   }
