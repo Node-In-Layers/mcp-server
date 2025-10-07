@@ -138,7 +138,7 @@ export const create = <TConfig extends McpServerConfig & Config>(
       execute: commonMcpExecute(async (input: any) => {
         const domain = input.domain
         const featureName = input.featureName
-        const feature = context[domain]?.[featureName]
+        const feature = context.features[domain]?.[featureName]
         if (
           !feature ||
           isDomainHiddenFunc(domain) ||
