@@ -1,3 +1,5 @@
+import flow from 'lodash/flow.js'
+import merge from 'lodash/merge.js'
 import get from 'lodash/get.js'
 import {
   createErrorObject,
@@ -467,3 +469,109 @@ export const commonMcpExecute =
         )
       })
   }
+
+export const cleanupSearchQuery = (query: any) => {
+  const ensureHasQuery = (q: any) => merge({ query: [] }, q)
+
+  const isPlainObject = (v: any) =>
+    v !== null && typeof v === 'object' && !Array.isArray(v)
+
+  const inferValueType = (
+    value: any
+  ): 'string' | 'number' | 'boolean' | 'object' | 'date' => {
+    if (value instanceof Date) return 'date'
+    const t = typeof value
+    if (t === 'string') return 'string'
+    if (t === 'number') return 'number'
+    if (t === 'boolean') return 'boolean'
+    return 'object'
+  }
+
+  const normalizeProperty = (token: any) => {
+    const valueType = token.valueType || inferValueType(token.value)
+    const equalitySymbol = token.equalitySymbol || '='
+    const options = token.options || {}
+    return {
+      ...token,
+      type: 'property',
+      valueType,
+      equalitySymbol,
+      options,
+    }
+  }
+
+  const normalizeDatesAfter = (token: any) => {
+    const valueType = token.valueType || 'date'
+    const options = token.options || {}
+    return {
+      ...token,
+      type: 'datesAfter',
+      valueType,
+      options: {
+        ...options,
+        ...(options.equalToAndAfter === undefined
+          ? { equalToAndAfter: false }
+          : {}),
+      },
+    }
+  }
+
+  const normalizeDatesBefore = (token: any) => {
+    const valueType = token.valueType || 'date'
+    const options = token.options || {}
+    return {
+      ...token,
+      type: 'datesBefore',
+      valueType,
+      options: {
+        ...options,
+        ...(options.equalToAndBefore === undefined
+          ? { equalToAndBefore: false }
+          : {}),
+      },
+    }
+  }
+
+  const normalizeToken = (token: any): any => {
+    if (token === 'AND' || token === 'OR') return token
+    if (Array.isArray(token)) return token.map(normalizeToken)
+    if (isPlainObject(token)) {
+      if (token.type === 'property') return normalizeProperty(token)
+      if (token.type === 'datesAfter') return normalizeDatesAfter(token)
+      if (token.type === 'datesBefore') return normalizeDatesBefore(token)
+      // Unknown object token, return as-is
+      return token
+    }
+    return token
+  }
+
+  const normalizeQueryTokens = (tokens: any): any => {
+    if (!tokens) return []
+    if (Array.isArray(tokens)) return tokens.map(normalizeToken)
+    return normalizeToken(tokens)
+  }
+
+  const addSortDefaults = (q: any) => {
+    if (!q.sort) return q
+    const { sort } = q
+    if (sort && typeof sort === 'object') {
+      return {
+        ...q,
+        sort: {
+          key: sort.key,
+          order: sort.order || 'asc',
+        },
+      }
+    }
+    return q
+  }
+
+  const addSearchDefaults = (q: any) => ({
+    ...q,
+    page: q.page,
+    take: q.take,
+    query: normalizeQueryTokens(q.query),
+  })
+
+  return flow([ensureHasQuery, addSortDefaults, addSearchDefaults])(query)
+}

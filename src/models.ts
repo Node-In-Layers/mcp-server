@@ -1,4 +1,3 @@
-import merge from 'lodash/merge.js'
 import { JsonAble, OrmModel, ValidationError } from 'functional-models'
 import {
   defaultModelTypeParser,
@@ -31,6 +30,7 @@ import {
   createModelsNotFoundError,
   createMcpResponse,
   createModelNotFoundError,
+  cleanupSearchQuery,
 } from './libs.js'
 import { McpNamespace, McpServerConfig } from './types.js'
 
@@ -255,7 +255,7 @@ export const create = <TConfig extends McpServerConfig & Config>(
     return {
       ...createMcpToolSearch(),
       execute: _createMcpModelFunc(async (input: any, model) => {
-        const cleanedQuery = merge({ query: [] }, input.search)
+        const cleanedQuery = cleanupSearchQuery(input.search)
         const result = await model.search(cleanedQuery)
         const instances = await asyncMap(result.instances, i => i.toObj())
         return { instances, page: result.page }
