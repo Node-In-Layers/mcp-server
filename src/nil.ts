@@ -256,7 +256,7 @@ export const create = <TConfig extends McpServerConfig & Config>(
     return {
       name: 'START_HERE',
       description:
-        'Provides a robust description about the system and how to use it.',
+        'BEFORE YOU DO ANYTHING, you should call this tool first!!! It provides a robust description about the system and how to use it.',
       inputSchema: { type: 'object', properties: {}, required: [] },
       // @ts-ignore
       outputSchema: { type: 'object', additionalProperties: true },
