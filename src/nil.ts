@@ -1,5 +1,6 @@
 import {
   Config,
+  CoreNamespace,
   createErrorObject,
   isErrorObject,
   LayerContext,
@@ -18,6 +19,7 @@ import {
   commonMcpExecute,
   crossLayerPropsOpenApi,
 } from './libs.js'
+import { default as nilSystem } from './docs/node-in-layers-system.json' with { type: 'json' }
 import { McpNamespace, McpServerConfig } from './types.js'
 
 const describeFeatureMcpTool = (): McpTool => {
@@ -250,10 +252,54 @@ export const create = <TConfig extends McpServerConfig & Config>(
     }
   }
 
+  const startHereMcpTool = (): McpTool => {
+    return {
+      name: 'START_HERE',
+      description:
+        'Provides a robust description about the system and how to use it.',
+      inputSchema: { type: 'object', properties: {}, required: [] },
+      // @ts-ignore
+      outputSchema: { type: 'object', additionalProperties: true },
+    }
+  }
+
+  const _startHereTool = (): ServerTool => {
+    return {
+      ...startHereMcpTool(),
+      execute: commonMcpExecute(async () => {
+        const systemDescription = context.config[McpNamespace].systemDescription
+        const systemName = context.config[CoreNamespace.root].systemName
+        const systemEntries = nilSystem
+        const entries = [
+          {
+            name: 'systemName',
+            value: systemName,
+          },
+          ...(systemDescription
+            ? [
+                {
+                  name: 'systemDescription',
+                  value: systemDescription,
+                },
+              ]
+            : []),
+          ...(systemDescription?.examplesOfUse
+            ? systemDescription.examplesOfUse
+            : []),
+          ...systemEntries,
+        ]
+        return createMcpResponse({
+          entries,
+        })
+      }),
+    }
+  }
+
   return {
     listDomains: _listDomainsTool,
     describeFeature: _describeFeatureTool,
     listFeatures: _listFeaturesTool,
     executeFeature: _executeFeatureTool,
+    startHere: _startHereTool,
   }
 }

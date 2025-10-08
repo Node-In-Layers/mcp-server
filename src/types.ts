@@ -16,6 +16,15 @@ type Connection =
   | ServerSseConfig
   | ServerStatelessHttpConfig
 
+export type SystemUseExample = Readonly<{
+  name: string
+  description?: string
+  value?: string
+  tags?: string[]
+  details?: string
+  example?: string
+}>
+
 /**
  * Configuration for the MCP server.
  * @interface
@@ -52,6 +61,15 @@ export type McpServerConfig = Readonly<{
      * myDomain.cruds.MyModel - hides a specific model
      */
     hiddenPaths?: string[]
+    /**
+     * Ability to set information about the system so that it can be fed to AI consumers.
+     *
+     */
+    systemDescription?: {
+      description?: string
+      version?: string
+      examplesOfUse?: ReadonlyArray<SystemUseExample>
+    }
     /**
      * Logging configuration.
      */

@@ -1,0 +1,339 @@
+[
+  {
+    "id": "2e19b8bf-2a4f-4f3c-9b7e-0f10c9e55c01",
+    "name": "What is a Node-In-Layers (NIL) system?",
+    "tags": ["intro", "layers", "models"],
+    "details": "A Node-In-Layers (NIL) system organizes application code into cohesive apps and layered responsibilities. Key default layers: globals (shared config and infra), services (talk to the outside world: DBs, APIs, files), features (business flows orchestrating steps), and entries (starting points like REST, CLI, serverless). Models are first-class: they define validated data structures and, when configured with an ORM, expose CRUDS APIs across services and features. This document focuses on how to navigate and use a NIL system via the MCP server tools."
+  },
+  {
+    "id": "7c0c9643-92f4-4603-984d-3a25b9bd3a28",
+    "name": "MCP navigation workflow (high level)",
+    "tags": ["mcp", "workflow", "discovery"],
+    "details": "Typical AI-driven navigation flow: (1) Call list_domains to discover business domains. (2) For the chosen domain, call list_features and list_models to understand available actions and data. (3) Optionally call describe_feature or describe_model to get precise input/output schemas. (4) Execute a feature with execute_feature, or operate on models with save/retrieve/delete/search/bulkInsert/bulkDelete. Prefer describe_* before execution to align arguments correctly."
+  },
+  {
+    "id": "0f9f5b67-9b8e-4b2a-8b28-2a8800d2c3a1",
+    "name": "Cross Layer Props (tracing across calls)",
+    "tags": ["mcp", "tracing", "crossLayerProps"],
+    "details": "crossLayerProps is an optional argument you can send with NIL MCP tool calls to enable end-to-end tracing across layers (features/services) and across multiple tool invocations. It carries correlation ids that the system logs at each hop so you can stitch together a full execution story.",
+    "example": {
+      "strategy": "Generate a single aiSessionId (uuid) for the entire AI session, and an aiRequestId (uuid) per user request. Reuse both ids for every tool call made while fulfilling that one user request.",
+      "idsObject": {
+        "crossLayerProps": {
+          "logging": {
+            "ids": [
+              {
+                "name": "aiSessionId",
+                "value": "8c2ab2c0-6f8e-4a6b-9b4e-3e9c1e3a9d10"
+              },
+              {
+                "name": "aiRequestId",
+                "value": "f4c7a8e2-1b9c-49bf-9f07-6b9d7f4e2a33"
+              }
+            ]
+          }
+        }
+      },
+      "calls": [
+        {
+          "tool": "list_domains",
+          "input": {
+            "crossLayerProps": {
+              "logging": {
+                "ids": [
+                  {
+                    "name": "aiSessionId",
+                    "value": "8c2ab2c0-6f8e-4a6b-9b4e-3e9c1e3a9d10"
+                  },
+                  {
+                    "name": "aiRequestId",
+                    "value": "f4c7a8e2-1b9c-49bf-9f07-6b9d7f4e2a33"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "tool": "list_features",
+          "input": {
+            "domain": "inventory",
+            "crossLayerProps": {
+              "logging": {
+                "ids": [
+                  {
+                    "name": "aiSessionId",
+                    "value": "8c2ab2c0-6f8e-4a6b-9b4e-3e9c1e3a9d10"
+                  },
+                  {
+                    "name": "aiRequestId",
+                    "value": "f4c7a8e2-1b9c-49bf-9f07-6b9d7f4e2a33"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "tool": "execute_feature",
+          "input": {
+            "domain": "inventory",
+            "featureName": "reserveItem",
+            "args": { "sku": "ABC-123", "quantity": 1, "userId": "u-42" },
+            "crossLayerProps": {
+              "logging": {
+                "ids": [
+                  {
+                    "name": "aiSessionId",
+                    "value": "8c2ab2c0-6f8e-4a6b-9b4e-3e9c1e3a9d10"
+                  },
+                  {
+                    "name": "aiRequestId",
+                    "value": "f4c7a8e2-1b9c-49bf-9f07-6b9d7f4e2a33"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ],
+      "notes": "Do not create a new id per individual tool call during the same user request; that breaks correlation. Keep aiSessionId stable for the chat/session, rotate aiRequestId per top-level user instruction."
+    }
+  },
+  {
+    "id": "a0a1c3cf-7f3f-4e4b-9f1e-2b1a9a7b11aa",
+    "name": "list_domains",
+    "tags": ["mcp", "nil", "discovery"],
+    "details": "Lists domains available in the system (from NIL features context). Hidden domains are omitted by server policy.",
+    "example": {
+      "request": {
+        "tool": "list_domains",
+        "input": {}
+      },
+      "response": {
+        "domains": [
+          { "name": "auth", "description": "User accounts and authentication" },
+          { "name": "inventory", "description": "Stock and availability" }
+        ]
+      },
+      "notes": "Start here. Use a domain's description to decide next actions."
+    }
+  },
+  {
+    "id": "f3b7b0d1-0d4e-4a25-9c76-8a7ef0f2d3c2",
+    "name": "list_features",
+    "tags": ["mcp", "nil", "discovery", "features"],
+    "details": "Lists callable business features for a domain. Use before execute_feature to see options.",
+    "example": {
+      "request": {
+        "tool": "list_features",
+        "input": { "domain": "inventory" }
+      },
+      "response": {
+        "features": [
+          {
+            "name": "checkItemAvailability",
+            "description": "Check stock for an item"
+          },
+          { "name": "reserveItem", "description": "Place a hold on an item" }
+        ]
+      },
+      "notes": "Only function-typed exports are listed; hidden features are omitted."
+    }
+  },
+  {
+    "id": "3f2f4a9a-4d75-41f0-b1a9-3b7f5a223c17",
+    "name": "describe_feature",
+    "tags": ["mcp", "nil", "schema", "features"],
+    "details": "Returns an OpenAPI-like schema for a feature. If the feature is NIL-annotated, the full schema is derived; otherwise, a generic schema is produced.",
+    "example": {
+      "request": {
+        "tool": "describe_feature",
+        "input": { "domain": "inventory", "featureName": "reserveItem" }
+      },
+      "response": {
+        "schema": {
+          "description": "Reserve an item for a user",
+          "properties": { "args": { "type": "object" } }
+        }
+      },
+      "notes": "Use before execute_feature to validate arguments."
+    }
+  },
+  {
+    "id": "9a1a7b5d-1b2e-4b6c-9f0c-2d3e4f5a6b7c",
+    "name": "execute_feature",
+    "tags": ["mcp", "nil", "execution", "features"],
+    "details": "Executes a specific domain feature. Pass feature-specific args and optional crossLayerProps for tracing.",
+    "example": {
+      "request": {
+        "tool": "execute_feature",
+        "input": {
+          "domain": "inventory",
+          "featureName": "reserveItem",
+          "args": { "sku": "ABC-123", "quantity": 1, "userId": "u-42" },
+          "crossLayerProps": {
+            "logging": { "ids": [{ "name": "traceId", "value": "123e4567" }] }
+          }
+        }
+      },
+      "response": {
+        "result": { "reservationId": "r-1001", "status": "RESERVED" }
+      },
+      "notes": "Errors are returned as structured error objects by the server."
+    }
+  },
+  {
+    "id": "b0c5c3f3-6a7d-4f0a-8b1c-6d3a2f1e9c88",
+    "name": "list_models",
+    "tags": ["mcp", "models", "discovery"],
+    "details": "Lists ORM-backed models for a domain with optional descriptions. Hidden models/domains are omitted.",
+    "example": {
+      "request": { "tool": "list_models", "input": { "domain": "inventory" } },
+      "response": {
+        "models": [
+          {
+            "modelType": "inventory/Inventories",
+            "description": "Inventory records"
+          }
+        ]
+      },
+      "notes": "Model type strings encode namespace and plural name."
+    }
+  },
+  {
+    "id": "d7f2b1c0-1b9d-4ef3-88a9-1c2e3f4a5b6c",
+    "name": "describe_model",
+    "tags": ["mcp", "models", "schema"],
+    "details": "Returns the model schema for a given modelType. Use to learn required fields and types.",
+    "example": {
+      "request": {
+        "tool": "describe_model",
+        "input": { "domain": "inventory", "modelType": "inventory/Inventories" }
+      },
+      "response": {
+        "schema": {
+          "properties": {
+            "id": { "type": "string" },
+            "sku": { "type": "string" },
+            "quantity": { "type": "number" }
+          }
+        }
+      },
+      "notes": "modelType is parsed into namespace and plural model name."
+    }
+  },
+  {
+    "id": "c5b7e0a2-4a6f-4a4e-8629-0f1a2b3c4d5e",
+    "name": "Model CRUD: save",
+    "tags": ["mcp", "models", "crud", "save"],
+    "details": "Creates or updates a model instance. Pass modelType and instance data.",
+    "example": {
+      "request": {
+        "tool": "save",
+        "input": {
+          "modelType": "inventory/Inventories",
+          "instance": { "sku": "ABC-123", "quantity": 10 }
+        }
+      },
+      "response": { "id": "inv-1", "sku": "ABC-123", "quantity": 10 },
+      "notes": "Validation errors are returned as structured error objects."
+    }
+  },
+  {
+    "id": "e1d2c3b4-a5f6-4a7b-8c9d-0e1f2a3b4c5d",
+    "name": "Model CRUD: retrieve",
+    "tags": ["mcp", "models", "crud", "retrieve"],
+    "details": "Retrieves a single instance by id.",
+    "example": {
+      "request": {
+        "tool": "retrieve",
+        "input": { "modelType": "inventory/Inventories", "id": "inv-1" }
+      },
+      "response": { "id": "inv-1", "sku": "ABC-123", "quantity": 10 },
+      "notes": "If not found, server returns a model-not-found error object."
+    }
+  },
+  {
+    "id": "f6a5b4c3-d2e1-4c0b-9a8f-7e6d5c4b3a21",
+    "name": "Model CRUD: delete",
+    "tags": ["mcp", "models", "crud", "delete"],
+    "details": "Deletes an instance by id.",
+    "example": {
+      "request": {
+        "tool": "delete",
+        "input": { "modelType": "inventory/Inventories", "id": "inv-1" }
+      },
+      "response": null,
+      "notes": "Returns null on success."
+    }
+  },
+  {
+    "id": "1a2b3c4d-5e6f-4701-8a9b-0c1d2e3f4a5b",
+    "name": "Model CRUD: search",
+    "tags": ["mcp", "models", "crud", "search"],
+    "details": "Searches model instances via ORM query format.",
+    "example": {
+      "request": {
+        "tool": "search",
+        "input": {
+          "modelType": "inventory/Inventories",
+          "query": {
+            "filters": [{ "field": "sku", "op": "=", "value": "ABC-123" }]
+          }
+        }
+      },
+      "response": {
+        "instances": [{ "id": "inv-1", "sku": "ABC-123", "quantity": 10 }],
+        "page": { "size": 25, "number": 1, "total": 1 }
+      },
+      "notes": "The exact search format depends on the ORM configured."
+    }
+  },
+  {
+    "id": "6b7c8d9e-0f1a-42b3-8c4d-5e6f7a8b9c0d",
+    "name": "Model CRUD: bulkInsert",
+    "tags": ["mcp", "models", "crud", "bulk"],
+    "details": "Inserts many instances in a single call.",
+    "example": {
+      "request": {
+        "tool": "bulkInsert",
+        "input": {
+          "modelType": "inventory/Inventories",
+          "items": [
+            { "sku": "ABC-123", "quantity": 5 },
+            { "sku": "XYZ-999", "quantity": 2 }
+          ]
+        }
+      },
+      "response": null,
+      "notes": "Returns null on success; validate inputs with describe_model first."
+    }
+  },
+  {
+    "id": "7c8d9e0f-1a2b-43c4-9d5e-6f7a8b9c0d1e",
+    "name": "Model CRUD: bulkDelete",
+    "tags": ["mcp", "models", "crud", "bulk"],
+    "details": "Deletes many instances by ids.",
+    "example": {
+      "request": {
+        "tool": "bulkDelete",
+        "input": {
+          "modelType": "inventory/Inventories",
+          "ids": ["inv-1", "inv-2"]
+        }
+      },
+      "response": null,
+      "notes": "Use search first to decide which ids to delete."
+    }
+  },
+  {
+    "id": "0a1b2c3d-4e5f-4607-8a90-b1c2d3e4f506",
+    "name": "Putting it together: example conversation flow",
+    "tags": ["mcp", "workflow", "examples"],
+    "details": "Example of an AI deciding which tools to call and in what order.",
+    "example": {
+      "markdown": "User asks: \"Reserve 1 unit of ABC-123 if available.\"\n\n1. list_domains {}\n   - Choose domain = inventory.\n2. list_features { domain: \"inventory\" } and list_models { domain: \"inventory\" }\n   - See feature reserveItem and model Inventories.\n3. describe_feature { domain: \"inventory\", featureName: \"checkItemAvailability\" }\n   - Confirm args: { sku: string, quantity: number }.\n4. execute_feature { domain: \"inventory\", featureName: \"checkItemAvailability\", args: { sku: \"ABC-123\", quantity: 1 }, crossLayerProps: { logging: { ids: [{ name: \"aiSessionId\", value: \"8c2ab...\" }, { name: \"aiRequestId\", value: \"f4c7a...\" }] } } }\n   - If available: true -> proceed.\n5. execute_feature { domain: \"inventory\", featureName: \"reserveItem\", args: { sku: \"ABC-123\", quantity: 1, userId: \"u-42\" }, crossLayerProps: { logging: { ids: [{ name: \"aiSessionId\", value: \"8c2ab...\" }, { name: \"aiRequestId\", value: \"f4c7a...\" }] } } }\n   - Returns reservationId.\n"
+    }
+  }
+]

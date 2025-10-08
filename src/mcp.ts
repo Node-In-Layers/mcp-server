@@ -78,6 +78,11 @@ const create = (
     const modelsMcp = createModelsMcp(systemContext)
     const nilMcp = createNilMcp(systemContext)
     const allTools = [
+      nilMcp.startHere(),
+      nilMcp.listDomains(),
+      nilMcp.listFeatures(),
+      nilMcp.describeFeature(),
+      nilMcp.executeFeature(),
       modelsMcp.listModels(),
       modelsMcp.describe(),
       modelsMcp.save(),
@@ -86,10 +91,6 @@ const create = (
       modelsMcp.search(),
       modelsMcp.bulkInsert(),
       modelsMcp.bulkDelete(),
-      nilMcp.listDomains(),
-      nilMcp.listFeatures(),
-      nilMcp.describeFeature(),
-      nilMcp.executeFeature(),
       ...tools,
     ].map(_wrapToolsWithLogger)
     const server = createSimpleServer(
