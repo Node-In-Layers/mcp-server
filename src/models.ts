@@ -17,10 +17,12 @@ import {
   LayerContext,
   Config,
 } from '@node-in-layers/core'
+import { modelToOpenApi } from 'functional-models-openapi'
 import { ServerTool } from '@l4t/mcp-ai/simple-server/types.js'
 import { McpTool } from '@l4t/mcp-ai/common/types.js'
 import { asyncMap } from 'modern-async'
 import {
+  zodToJson,
   isDomainHidden,
   areAllModelsHidden,
   isModelHidden,
@@ -155,8 +157,8 @@ export const create = <TConfig extends McpServerConfig & Config>(
         ) {
           return createModelNotFoundError()
         }
-        const schema = model.getModel().getModelDefinition().schema
-        return createMcpResponse(schema)
+        const asJson = modelToOpenApi(model.getModel())
+        return createMcpResponse(asJson)
       }),
     }
   }
@@ -253,7 +255,7 @@ export const create = <TConfig extends McpServerConfig & Config>(
     return {
       ...createMcpToolSearch(),
       execute: _createMcpModelFunc(async (input: any, model) => {
-        const cleanedQuery = merge({query: []}, input.search)
+        const cleanedQuery = merge({ query: [] }, input.search)
         const result = await model.search(cleanedQuery)
         const instances = await asyncMap(result.instances, i => i.toObj())
         return { instances, page: result.page }
