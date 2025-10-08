@@ -262,6 +262,8 @@ export const zodToJson = (schema: any): Record<string, any> => {
  */
 export const crossLayerPropsOpenApi = (): any => ({
   type: 'object',
+  description:
+    'CrossLayerProps is an optional argument you can send with NIL MCP tool calls to enable end-to-end tracing across layers (features/services) and across multiple tool invocations. It carries correlation ids that the system logs at each hop so you can stitch together a full execution story.',
   additionalProperties: true,
   properties: {
     logging: {
@@ -272,6 +274,8 @@ export const crossLayerPropsOpenApi = (): any => ({
           type: 'array',
           items: {
             type: 'object',
+            description:
+              'Each of these are individual objects, that have a key:id pair. Example: "ids": [{"myId":"123"},{"anotherId":"456"}]',
             additionalProperties: { type: 'string' },
           },
         },
