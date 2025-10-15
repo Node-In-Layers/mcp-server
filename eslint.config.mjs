@@ -229,7 +229,7 @@ export default [
       'import/exports-last': 0,
       'import/no-duplicates': ['error'],
       'import/no-namespace': 0,
-      'import/extensions': ['error'],
+      'import/extensions': 0,
       'import/order': ['error'],
       'import/newline-after-import': ['error'],
       'import/prefer-default-export': 0,

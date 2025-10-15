@@ -21,7 +21,6 @@ import { ServerTool } from '@l4t/mcp-ai/simple-server/types.js'
 import { McpTool } from '@l4t/mcp-ai/common/types.js'
 import { asyncMap } from 'modern-async'
 import {
-  zodToJson,
   isDomainHidden,
   areAllModelsHidden,
   isModelHidden,

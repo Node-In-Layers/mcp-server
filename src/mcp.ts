@@ -1,4 +1,5 @@
 import { randomUUID } from 'crypto'
+import get from 'lodash/get.js'
 import { Config, LayerContext } from '@node-in-layers/core'
 import { createSimpleServer } from '@l4t/mcp-ai/simple-server/index.js'
 import { ServerTool } from '@l4t/mcp-ai/simple-server/types.js'
@@ -54,11 +55,13 @@ const create = (
           ids: logger.getIds(),
         },
       })
+      const data = get(result, 'content[0].text')
+      const toShow = data ? JSON.parse(data) : result
 
       const responseData =
         context.config[McpNamespace].logging?.responseLogGetData?.(result) || {}
       logger[level]('Request Response', {
-        response: result,
+        response: toShow,
         ...responseData,
       })
 

@@ -479,11 +479,19 @@ export const cleanupSearchQuery = (query: any) => {
   const inferValueType = (
     value: any
   ): 'string' | 'number' | 'boolean' | 'object' | 'date' => {
-    if (value instanceof Date) return 'date'
+    if (value instanceof Date) {
+      return 'date'
+    }
     const t = typeof value
-    if (t === 'string') return 'string'
-    if (t === 'number') return 'number'
-    if (t === 'boolean') return 'boolean'
+    if (t === 'string') {
+      return 'string'
+    }
+    if (t === 'number') {
+      return 'number'
+    }
+    if (t === 'boolean') {
+      return 'boolean'
+    }
     return 'object'
   }
 
@@ -533,12 +541,22 @@ export const cleanupSearchQuery = (query: any) => {
   }
 
   const normalizeToken = (token: any): any => {
-    if (token === 'AND' || token === 'OR') return token
-    if (Array.isArray(token)) return token.map(normalizeToken)
+    if (token === 'AND' || token === 'OR') {
+      return token
+    }
+    if (Array.isArray(token)) {
+      return token.map(normalizeToken)
+    }
     if (isPlainObject(token)) {
-      if (token.type === 'property') return normalizeProperty(token)
-      if (token.type === 'datesAfter') return normalizeDatesAfter(token)
-      if (token.type === 'datesBefore') return normalizeDatesBefore(token)
+      if (token.type === 'property') {
+        return normalizeProperty(token)
+      }
+      if (token.type === 'datesAfter') {
+        return normalizeDatesAfter(token)
+      }
+      if (token.type === 'datesBefore') {
+        return normalizeDatesBefore(token)
+      }
       // Unknown object token, return as-is
       return token
     }
@@ -546,13 +564,19 @@ export const cleanupSearchQuery = (query: any) => {
   }
 
   const normalizeQueryTokens = (tokens: any): any => {
-    if (!tokens) return []
-    if (Array.isArray(tokens)) return tokens.map(normalizeToken)
+    if (!tokens) {
+      return []
+    }
+    if (Array.isArray(tokens)) {
+      return tokens.map(normalizeToken)
+    }
     return normalizeToken(tokens)
   }
 
   const addSortDefaults = (q: any) => {
-    if (!q.sort) return q
+    if (!q.sort) {
+      return q
+    }
     const { sort } = q
     if (sort && typeof sort === 'object') {
       return {

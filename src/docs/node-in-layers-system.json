@@ -23,7 +23,7 @@
           "logging": {
             "ids": [
               { "aiSessionId": "8c2ab2c0-6f8e-4a6b-9b4e-3e9c1e3a9d10" },
-              { "airequestId": "f4c7a8e2-1b9c-49bf-9f07-6b9d7f4e2a33" }
+              { "aiRequestId": "f4c7a8e2-1b9c-49bf-9f07-6b9d7f4e2a33" }
             ]
           }
         }
@@ -36,7 +36,7 @@
               "logging": {
                 "ids": [
                   { "aiSessionId": "8c2ab2c0-6f8e-4a6b-9b4e-3e9c1e3a9d10" },
-                  { "airequestId": "f4c7a8e2-1b9c-49bf-9f07-6b9d7f4e2a33" }
+                  { "aiRequestId": "f4c7a8e2-1b9c-49bf-9f07-6b9d7f4e2a33" }
                 ]
               }
             }
@@ -50,7 +50,7 @@
               "logging": {
                 "ids": [
                   { "aiSessionId": "8c2ab2c0-6f8e-4a6b-9b4e-3e9c1e3a9d10" },
-                  { "airequestId": "f4c7a8e2-1b9c-49bf-9f07-6b9d7f4e2a33" }
+                  { "aiRequestId": "f4c7a8e2-1b9c-49bf-9f07-6b9d7f4e2a33" }
                 ]
               }
             }
@@ -66,7 +66,7 @@
               "logging": {
                 "ids": [
                   { "aiSessionId": "8c2ab2c0-6f8e-4a6b-9b4e-3e9c1e3a9d10" },
-                  { "airequestId": "f4c7a8e2-1b9c-49bf-9f07-6b9d7f4e2a33" }
+                  { "aiRequestId": "f4c7a8e2-1b9c-49bf-9f07-6b9d7f4e2a33" }
                 ]
               }
             }
@@ -309,7 +309,7 @@
     "tags": ["mcp", "workflow", "examples"],
     "details": "Example of an AI deciding which tools to call and in what order.",
     "example": {
-      "markdown": "User asks: \"Reserve 1 unit of ABC-123 if available.\"\n\n1. list_domains {}\n   - Choose domain = inventory.\n2. list_features { domain: \"inventory\" } and list_models { domain: \"inventory\" }\n   - See feature reserveItem and model Inventories.\n3. describe_feature { domain: \"inventory\", featureName: \"checkItemAvailability\" }\n   - Confirm args: { sku: string, quantity: number }.\n4. execute_feature { domain: \"inventory\", featureName: \"checkItemAvailability\", args: { sku: \"ABC-123\", quantity: 1 }, crossLayerProps: { logging: { ids: [{ aiSessionId: \"8c2ab...\" }, { airequestId: \"f4c7a...\" }] } } }\n   - If available: true -> proceed.\n5. execute_feature { domain: \"inventory\", featureName: \"reserveItem\", args: { sku: \"ABC-123\", quantity: 1, userId: \"u-42\" }, crossLayerProps: { logging: { ids: [{ aiSessionId: \"8c2ab...\" }, { airequestId: \"f4c7a...\" }] } } }\n   - Returns reservationId.\n"
+      "markdown": "User asks: \"Reserve 1 unit of ABC-123 if available.\"\n\n1. list_domains {}\n   - Choose domain = inventory.\n2. list_features { domain: \"inventory\" } and list_models { domain: \"inventory\" }\n   - See feature reserveItem and model Inventories.\n3. describe_feature { domain: \"inventory\", featureName: \"checkItemAvailability\" }\n   - Confirm args: { sku: string, quantity: number }.\n4. execute_feature { domain: \"inventory\", featureName: \"checkItemAvailability\", args: { sku: \"ABC-123\", quantity: 1 }, crossLayerProps: { logging: { ids: [{ aiSessionId: \"8c2ab...\" }, { aiRequestId: \"f4c7a...\" }] } } }\n   - If available: true -> proceed.\n5. execute_feature { domain: \"inventory\", featureName: \"reserveItem\", args: { sku: \"ABC-123\", quantity: 1, userId: \"u-42\" }, crossLayerProps: { logging: { ids: [{ aiSessionId: \"8c2ab...\" }, { aiRequestId: \"f4c7a...\" }] } } }\n   - Returns reservationId.\n"
     }
   }
 ]
