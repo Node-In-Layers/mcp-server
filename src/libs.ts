@@ -411,6 +411,11 @@ export const createFeatureNotFoundError = () =>
 export const createModelsNotFoundError = () =>
   createErrorObject('MODELS_NOT_FOUND', 'Models not found')
 
+export const doesDomainExist =
+  (hiddenPaths: Set<string>) => (domain: string) => {
+    return !hiddenPaths.has(domain)
+  }
+
 export const isDomainHidden =
   (hiddenPaths: Set<string>) => (domain: string) => {
     return hiddenPaths.has(domain)

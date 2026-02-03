@@ -30,6 +30,7 @@ import {
   createMcpResponse,
   createModelNotFoundError,
   cleanupSearchQuery,
+  doesDomainExist,
 } from './libs.js'
 import { McpNamespace, McpServerConfig } from './types.js'
 
@@ -95,6 +96,7 @@ export const create = <TConfig extends McpServerConfig & Config>(
     ...(context.config[McpNamespace].hiddenPaths || []),
   ])
 
+  const doesDomainExistFunc = doesDomainExist(context)
   const isDomainHiddenFunc = isDomainHidden(hiddenPaths)
   const areAllModelsHiddenFunc = areAllModelsHidden(hiddenPaths)
   const isModelHiddenFunc = isModelHidden(hiddenPaths)
@@ -104,7 +106,11 @@ export const create = <TConfig extends McpServerConfig & Config>(
       ...listModelsMcpTool(),
       execute: commonMcpExecute(async (input: any) => {
         const domain = input.domain
-        if (isDomainHiddenFunc(domain) || areAllModelsHiddenFunc(domain)) {
+        if (
+          doesDomainExistFunc(domain) ||
+          isDomainHiddenFunc(domain) ||
+          areAllModelsHiddenFunc(domain)
+        ) {
           return createDomainNotFoundError()
         }
         const models = context.features[domain].cruds as Record<
@@ -139,7 +145,7 @@ export const create = <TConfig extends McpServerConfig & Config>(
       ...describeModelMcpTool(),
       execute: commonMcpExecute(async (input: any) => {
         const domain = input.domain
-        if (isDomainHiddenFunc(domain)) {
+        if (!doesDomainExistFunc(domain) || isDomainHiddenFunc(domain)) {
           return createDomainNotFoundError()
         }
         const { pluralName, namespace } = defaultModelTypeParser(
@@ -168,7 +174,7 @@ export const create = <TConfig extends McpServerConfig & Config>(
     return commonMcpExecute(async (input: any) => {
       const modelType = input.modelType
       const { namespace, pluralName } = defaultModelTypeParser(modelType)
-      if (isDomainHiddenFunc(namespace)) {
+      if (!doesDomainExistFunc(namespace) || isDomainHiddenFunc(namespace)) {
         return createDomainNotFoundError()
       }
       if (!pluralName) {
@@ -266,7 +272,8 @@ export const create = <TConfig extends McpServerConfig & Config>(
     return {
       ...createMcpToolBulkInsert(),
       execute: _createMcpModelFunc(async (input: any, model) => {
-        await model.bulkInsert(input.items)
+        const objs = input.items.map(i => model.create(i))
+        await model.bulkInsert(objs)
         return null
       }),
     }
