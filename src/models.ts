@@ -30,7 +30,7 @@ import {
   createMcpResponse,
   createModelNotFoundError,
   cleanupSearchQuery,
-  doesDomainExist,
+  doesDomainNotExist,
 } from './libs.js'
 import { McpNamespace, McpServerConfig } from './types.js'
 
@@ -96,7 +96,7 @@ export const create = <TConfig extends McpServerConfig & Config>(
     ...(context.config[McpNamespace].hiddenPaths || []),
   ])
 
-  const doesDomainExistFunc = doesDomainExist(context)
+  const doesDomainNotExistFunc = doesDomainNotExist(context)
   const isDomainHiddenFunc = isDomainHidden(hiddenPaths)
   const areAllModelsHiddenFunc = areAllModelsHidden(hiddenPaths)
   const isModelHiddenFunc = isModelHidden(hiddenPaths)
@@ -107,7 +107,7 @@ export const create = <TConfig extends McpServerConfig & Config>(
       execute: commonMcpExecute(async (input: any) => {
         const domain = input.domain
         if (
-          doesDomainExistFunc(domain) ||
+          doesDomainNotExistFunc(domain) ||
           isDomainHiddenFunc(domain) ||
           areAllModelsHiddenFunc(domain)
         ) {
@@ -145,7 +145,7 @@ export const create = <TConfig extends McpServerConfig & Config>(
       ...describeModelMcpTool(),
       execute: commonMcpExecute(async (input: any) => {
         const domain = input.domain
-        if (!doesDomainExistFunc(domain) || isDomainHiddenFunc(domain)) {
+        if (!doesDomainNotExistFunc(domain) || isDomainHiddenFunc(domain)) {
           return createDomainNotFoundError()
         }
         const { pluralName, namespace } = defaultModelTypeParser(
@@ -174,7 +174,7 @@ export const create = <TConfig extends McpServerConfig & Config>(
     return commonMcpExecute(async (input: any) => {
       const modelType = input.modelType
       const { namespace, pluralName } = defaultModelTypeParser(modelType)
-      if (!doesDomainExistFunc(namespace) || isDomainHiddenFunc(namespace)) {
+      if (!doesDomainNotExistFunc(namespace) || isDomainHiddenFunc(namespace)) {
         return createDomainNotFoundError()
       }
       if (!pluralName) {
