@@ -145,7 +145,7 @@ export const create = <TConfig extends McpServerConfig & Config>(
       ...describeModelMcpTool(),
       execute: commonMcpExecute(async (input: any) => {
         const domain = input.domain
-        if (!doesDomainNotExistFunc(domain) || isDomainHiddenFunc(domain)) {
+        if (doesDomainNotExistFunc(domain) || isDomainHiddenFunc(domain)) {
           return createDomainNotFoundError()
         }
         const { pluralName, namespace } = defaultModelTypeParser(
@@ -174,7 +174,7 @@ export const create = <TConfig extends McpServerConfig & Config>(
     return commonMcpExecute(async (input: any) => {
       const modelType = input.modelType
       const { namespace, pluralName } = defaultModelTypeParser(modelType)
-      if (!doesDomainNotExistFunc(namespace) || isDomainHiddenFunc(namespace)) {
+      if (doesDomainNotExistFunc(namespace) || isDomainHiddenFunc(namespace)) {
         return createDomainNotFoundError()
       }
       if (!pluralName) {
