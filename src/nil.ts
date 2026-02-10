@@ -2,8 +2,10 @@ import {
   Config,
   CoreNamespace,
   createErrorObject,
+  FeaturesContext,
   isErrorObject,
   LayerContext,
+  ServicesContext,
 } from '@node-in-layers/core'
 import { McpTool } from '@l4t/mcp-ai/common/types.js'
 import { ServerTool } from '@l4t/mcp-ai/simple-server/types.js'
@@ -18,9 +20,10 @@ import {
   isFeatureHidden,
   commonMcpExecute,
   crossLayerPropsOpenApi,
+  doesDomainNotExist,
 } from './libs.js'
 import { default as nilSystem } from './docs/node-in-layers-system.json' with { type: 'json' }
-import { McpNamespace, McpServerConfig } from './types.js'
+import { McpNamespace, McpServerConfig, SystemUseExample } from './types.js'
 
 const describeFeatureMcpTool = (): McpTool => {
   return {
@@ -126,7 +129,7 @@ const listDomainsMcpTool = (): McpTool => {
 }
 
 export const create = <TConfig extends McpServerConfig & Config>(
-  context: LayerContext<TConfig, any>
+  context: FeaturesContext<TConfig>
 ) => {
   const hiddenPaths = new Set([
     '@node-in-layers/core',
@@ -135,8 +138,9 @@ export const create = <TConfig extends McpServerConfig & Config>(
     ...(context.config[McpNamespace].hiddenPaths || []),
   ])
 
-  const isDomainHiddenFunc = isDomainHidden(hiddenPaths)
-  const isFeatureHiddenFunc = isFeatureHidden(hiddenPaths)
+  const doesDomainNotExistFunc = doesDomainNotExist(context)
+  const isDomainHiddenFunc = isDomainHidden(hiddenPaths, context.config)
+  const isFeatureHiddenFunc = isFeatureHidden(hiddenPaths, context.config)
 
   const _listDomainsTool = (): ServerTool => {
     return {
@@ -144,7 +148,10 @@ export const create = <TConfig extends McpServerConfig & Config>(
       execute: commonMcpExecute(async () => {
         const domains = Object.entries(context.features).reduce(
           (acc, [domainName]) => {
-            if (isDomainHiddenFunc(domainName)) {
+            if (
+              doesDomainNotExistFunc(domainName) ||
+              isDomainHiddenFunc(domainName)
+            ) {
               return acc
             }
             const description = context.config[
@@ -171,6 +178,7 @@ export const create = <TConfig extends McpServerConfig & Config>(
         const feature = context.features[domain]?.[featureName]
         if (
           !feature ||
+          doesDomainNotExistFunc(domain) ||
           isDomainHiddenFunc(domain) ||
           isFeatureHiddenFunc(domain, featureName)
         ) {
@@ -189,7 +197,7 @@ export const create = <TConfig extends McpServerConfig & Config>(
       ...listFeaturesMcpTool(),
       execute: commonMcpExecute(async (input: any) => {
         const domain = input.domain
-        if (isDomainHiddenFunc(domain)) {
+        if (doesDomainNotExistFunc(domain) || isDomainHiddenFunc(domain)) {
           return createDomainNotFoundError()
         }
         const features = context.features
@@ -230,6 +238,7 @@ export const create = <TConfig extends McpServerConfig & Config>(
         const feature = context.features[domain]?.[featureName]
         if (
           !feature ||
+          doesDomainNotExistFunc(domain) ||
           isDomainHiddenFunc(domain) ||
           isFeatureHiddenFunc(domain, featureName)
         ) {
@@ -268,24 +277,25 @@ export const create = <TConfig extends McpServerConfig & Config>(
       ...startHereMcpTool(),
       execute: commonMcpExecute(async () => {
         const systemDescription = context.config[McpNamespace].systemDescription
-        const systemName = context.config[CoreNamespace.root].systemName
+        const systemName = context.config.systemName
         const systemEntries = nilSystem
+        const systemNameExample: SystemUseExample = {
+          name: 'systemName',
+          value: systemName,
+        }
+        const systemDescriptionExample: SystemUseExample = {
+          name: 'systemDescription',
+          value: systemDescription?.description || '',
+        }
+        const systemVersionExample: SystemUseExample = {
+          name: 'systemVersion',
+          value: systemDescription?.version || '',
+        }
         const entries = [
-          {
-            name: 'systemName',
-            value: systemName,
-          },
-          ...(systemDescription
-            ? [
-                {
-                  name: 'systemDescription',
-                  value: systemDescription,
-                },
-              ]
-            : []),
-          ...(systemDescription?.examplesOfUse
-            ? systemDescription.examplesOfUse
-            : []),
+          systemNameExample,
+          systemDescriptionExample,
+          systemVersionExample,
+          ...(systemDescription?.examplesOfUse || []),
           ...systemEntries,
         ]
         return createMcpResponse({

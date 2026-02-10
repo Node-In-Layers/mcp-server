@@ -97,9 +97,9 @@ export const create = <TConfig extends McpServerConfig & Config>(
   ])
 
   const doesDomainNotExistFunc = doesDomainNotExist(context)
-  const isDomainHiddenFunc = isDomainHidden(hiddenPaths)
-  const areAllModelsHiddenFunc = areAllModelsHidden(hiddenPaths)
-  const isModelHiddenFunc = isModelHidden(hiddenPaths)
+  const isDomainHiddenFunc = isDomainHidden(hiddenPaths, context.config)
+  const areAllModelsHiddenFunc = areAllModelsHidden(hiddenPaths, context.config)
+  const isModelHiddenFunc = isModelHidden(hiddenPaths, context.config)
 
   const listModels = (): ServerTool => {
     return {

@@ -53,14 +53,33 @@ export type McpServerConfig = Readonly<{
       connection: Connection
     }
     /**
-     * Dot paths, to hide from the server.
-     * Example:
-     * myDomain - hides an entire domain.
-     * myDomain.myFeature - hides a feature.
-     * myDomain.cruds - hides ALL models of the domain
-     * myDomain.cruds.MyModel - hides a specific model
+     * (Deprecated) Dot paths, to hide from the server.
+     * Use hideComponents instead.
      */
     hiddenPaths?: string[]
+    /**
+     * If provided, hides the components configured.
+     */
+    hideComponents?: {
+      /**
+       * Dot paths, to hide from the server.
+       * Example:
+       * myDomain - hides an entire domain.
+       * myDomain.myFeature - hides a feature.
+       * myDomain.cruds - hides ALL models of the domain
+       * myDomain.cruds.MyModel - hides a specific model
+       */
+      paths?: ReadonlyArray<string>
+      /**
+       * Which domains to completely hide. (Will not show up in the domain list).
+       */
+      domains?: string[]
+      /**
+       * Whether to hide all model cruds entirely.
+       * This will not show any tools related to models.
+       */
+      allModels?: boolean
+    }
     /**
      * Ability to set information about the system so that it can be fed to AI consumers.
      *

@@ -9,7 +9,11 @@ import {
 } from '@node-in-layers/core'
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { JsonAble } from 'functional-models'
-import { OpenApiFunctionDescription } from './types.js'
+import {
+  McpNamespace,
+  McpServerConfig,
+  OpenApiFunctionDescription,
+} from './types.js'
 
 export const isNilAnnotatedFunction = (
   fn: any
@@ -416,23 +420,41 @@ export const doesDomainNotExist = context => (domain: string) => {
 }
 
 export const isDomainHidden =
-  (hiddenPaths: Set<string>) => (domain: string) => {
-    return hiddenPaths.has(domain)
+  (hiddenPaths: Set<string>, config: McpServerConfig) => (domain: string) => {
+    return (
+      hiddenPaths.has(domain) ||
+      config[McpNamespace].hideComponents?.domains?.includes(domain)
+    )
   }
 
 export const areAllModelsHidden =
-  (hiddenPaths: Set<string>) => (domain: string) => {
-    return hiddenPaths.has(`${domain}.cruds`)
+  (hiddenPaths: Set<string>, config: McpServerConfig) => (domain: string) => {
+    return (
+      hiddenPaths.has(`${domain}.cruds`) ||
+      config[McpNamespace].hideComponents?.allModels
+    )
   }
 
 export const isFeatureHidden =
-  (hiddenPaths: Set<string>) => (domain: string, featureName: string) => {
-    return hiddenPaths.has(`${domain}.${featureName}`)
+  (hiddenPaths: Set<string>, config: McpServerConfig) =>
+  (domain: string, featureName: string) => {
+    return (
+      hiddenPaths.has(`${domain}.${featureName}`) ||
+      config[McpNamespace].hideComponents?.paths?.includes(
+        `${domain}.${featureName}`
+      )
+    )
   }
 
 export const isModelHidden =
-  (hiddenPaths: Set<string>) => (domain: string, modelName: string) => {
-    return hiddenPaths.has(`${domain}.cruds.${modelName}`)
+  (hiddenPaths: Set<string>, config: McpServerConfig) =>
+  (domain: string, modelName: string) => {
+    return (
+      hiddenPaths.has(`${domain}.cruds.${modelName}`) ||
+      config[McpNamespace].hideComponents?.paths?.includes(
+        `${domain}.cruds.${modelName}`
+      )
+    )
   }
 
 const isMcpResponse = (result: any): boolean => {

@@ -74,18 +74,13 @@ const create = (
     }
   }
 
-  const _getServer = (
-    systemContext: LayerContext<Config, any>,
-    options?: AppOptions
-  ) => {
+  const _getModelsMcpTools = (systemContext: LayerContext<Config, any>) => {
+    const config = systemContext.config[McpNamespace]
+    if (config.hideComponents?.allModels) {
+      return []
+    }
     const modelsMcp = createModelsMcp(systemContext)
-    const nilMcp = createNilMcp(systemContext)
-    const allTools = [
-      nilMcp.startHere(),
-      nilMcp.listDomains(),
-      nilMcp.listFeatures(),
-      nilMcp.describeFeature(),
-      nilMcp.executeFeature(),
+    return [
       modelsMcp.listModels(),
       modelsMcp.describe(),
       modelsMcp.save(),
@@ -94,6 +89,21 @@ const create = (
       modelsMcp.search(),
       modelsMcp.bulkInsert(),
       modelsMcp.bulkDelete(),
+    ]
+  }
+
+  const _getServer = (
+    systemContext: LayerContext<Config, any>,
+    options?: AppOptions
+  ) => {
+    const nilMcp = createNilMcp(systemContext)
+    const allTools = [
+      nilMcp.startHere(),
+      nilMcp.listDomains(),
+      nilMcp.listFeatures(),
+      nilMcp.describeFeature(),
+      nilMcp.executeFeature(),
+      ..._getModelsMcpTools(systemContext),
       ...tools,
     ].map(_wrapToolsWithLogger)
     const server = createSimpleServer(
