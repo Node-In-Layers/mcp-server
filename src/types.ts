@@ -53,6 +53,19 @@ export type McpServerConfig = Readonly<{
       connection: Connection
     }
     /**
+     * Overrides for the start here tool.
+     */
+    startHere?: {
+      /**
+       * Overrides the name of the tool. Default: 'START_HERE'
+       */
+      name: string
+      /**
+       * Overrides the description of the tool.
+       */
+      description: string
+    }
+    /**
      * (Deprecated) Dot paths, to hide from the server.
      * Use hideComponents instead.
      */
