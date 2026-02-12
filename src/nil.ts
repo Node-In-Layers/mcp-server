@@ -1,11 +1,10 @@
 import {
   Config,
-  CoreNamespace,
   createErrorObject,
+  ErrorObject,
   FeaturesContext,
   isErrorObject,
-  LayerContext,
-  ServicesContext,
+  memoizeValueSync,
 } from '@node-in-layers/core'
 import { McpTool } from '@l4t/mcp-ai/common/types.js'
 import { ServerTool } from '@l4t/mcp-ai/simple-server/types.js'
@@ -18,6 +17,8 @@ import {
   createOpenApiForNonNilAnnotatedFunction,
   isDomainHidden,
   isFeatureHidden,
+  areAllModelsHidden,
+  isModelHidden,
   commonMcpExecute,
   crossLayerPropsOpenApi,
   doesDomainNotExist,
@@ -128,15 +129,103 @@ const listDomainsMcpTool = (): McpTool => {
   }
 }
 
-export const create = <TConfig extends McpServerConfig & Config>(
-  context: FeaturesContext<TConfig>
-) => {
-  const hiddenPaths = new Set([
+const _listDomains = (context: FeaturesContext<McpServerConfig & Config>) => {
+  const hiddenPaths = _getHiddenPaths(context)
+  const doesDomainNotExistFunc = doesDomainNotExist(context)
+  const isDomainHiddenFunc = isDomainHidden(hiddenPaths, context.config)
+  const areAllModelsHiddenFunc = areAllModelsHidden(hiddenPaths, context.config)
+  const isModelHiddenFunc = isModelHidden(hiddenPaths, context.config)
+
+  return Object.entries(context.features).reduce(
+    (acc, [domainName]) => {
+      if (
+        doesDomainNotExistFunc(domainName) ||
+        isDomainHiddenFunc(domainName)
+      ) {
+        return acc
+      }
+      const featuresResult = _listFeaturesOfDomain(context, domainName)
+      const hasExposedFeatures =
+        !isErrorObject(featuresResult) && featuresResult.length > 0
+
+      const cruds = context.features[domainName]?.cruds as
+        | Record<string, unknown>
+        | undefined
+      const hasExposedModels =
+        !context.config[McpNamespace].hideComponents?.allModels &&
+        Boolean(cruds) &&
+        !areAllModelsHiddenFunc(domainName) &&
+        Object.keys(cruds ?? {}).some(
+          modelName => !isModelHiddenFunc(domainName, modelName)
+        )
+
+      if (!hasExposedFeatures && !hasExposedModels) {
+        return acc
+      }
+
+      const description = context.config['@node-in-layers/core'].apps.find(
+        app => app.name === domainName
+      )?.description
+      return acc.concat({
+        name: domainName,
+        ...(description ? { description } : {}),
+      })
+    },
+    [] as { name: string; description?: string }[]
+  )
+}
+
+const _listFeaturesOfDomain = (
+  context: FeaturesContext<McpServerConfig & Config>,
+  domain: string
+): ReadonlyArray<{ name: string; description?: string }> | ErrorObject => {
+  const hiddenPaths = _getHiddenPaths(context)
+  const doesDomainNotExistFunc = doesDomainNotExist(context)
+  const isFeatureHiddenFunc = isFeatureHidden(hiddenPaths, context.config)
+  const isDomainHiddenFunc = isDomainHidden(hiddenPaths, context.config)
+  if (doesDomainNotExistFunc(domain) || isDomainHiddenFunc(domain)) {
+    const e: ErrorObject = createDomainNotFoundError()
+    return e
+  }
+  const features = context.features
+  if (!features || !context.features[domain]) {
+    return []
+  }
+  return Object.entries(features[domain]).reduce(
+    (acc, [featureName, feature]) => {
+      if (typeof feature !== 'function') {
+        return acc
+      }
+      if (isFeatureHiddenFunc(domain, featureName)) {
+        return acc
+      }
+      const obj = {
+        name: featureName,
+        // @ts-ignore
+        ...(feature.schema?.description
+          ? // @ts-ignore
+            { description: feature.schema.description }
+          : {}),
+      }
+      return acc.concat(obj)
+    },
+    [] as { name: string; description?: string }[]
+  )
+}
+
+const _getHiddenPaths = memoizeValueSync((context: FeaturesContext<Config>) => {
+  return new Set([
     '@node-in-layers/core',
     '@node-in-layers/data',
     '@node-in-layers/mcp-server',
     ...(context.config[McpNamespace].hiddenPaths || []),
   ])
+})
+
+export const create = <TConfig extends McpServerConfig & Config>(
+  context: FeaturesContext<TConfig>
+) => {
+  const hiddenPaths = _getHiddenPaths(context)
 
   const doesDomainNotExistFunc = doesDomainNotExist(context)
   const isDomainHiddenFunc = isDomainHidden(hiddenPaths, context.config)
@@ -146,24 +235,7 @@ export const create = <TConfig extends McpServerConfig & Config>(
     return {
       ...listDomainsMcpTool(),
       execute: commonMcpExecute(async () => {
-        const domains = Object.entries(context.features).reduce(
-          (acc, [domainName]) => {
-            if (
-              doesDomainNotExistFunc(domainName) ||
-              isDomainHiddenFunc(domainName)
-            ) {
-              return acc
-            }
-            const description = context.config[
-              '@node-in-layers/core'
-            ].apps.find(app => app.name === domainName)?.description
-            return acc.concat({
-              name: domainName,
-              ...(description ? { description } : {}),
-            })
-          },
-          [] as { name: string; description?: string }[]
-        )
+        const domains = _listDomains(context)
         return createMcpResponse(domains)
       }),
     }
@@ -197,34 +269,11 @@ export const create = <TConfig extends McpServerConfig & Config>(
       ...listFeaturesMcpTool(),
       execute: commonMcpExecute(async (input: any) => {
         const domain = input.domain
-        if (doesDomainNotExistFunc(domain) || isDomainHiddenFunc(domain)) {
-          return createDomainNotFoundError()
+        const features = _listFeaturesOfDomain(context, domain)
+        if (isErrorObject(features)) {
+          return features
         }
-        const features = context.features
-        if (!features || !context.features[domain]) {
-          return createMcpResponse({ features: [] })
-        }
-        const result = Object.entries(features[domain]).reduce(
-          (acc, [featureName, feature]) => {
-            if (typeof feature !== 'function') {
-              return acc
-            }
-            if (isFeatureHiddenFunc(domain, featureName)) {
-              return acc
-            }
-            const obj = {
-              name: featureName,
-              // @ts-ignore
-              ...(feature.schema?.description
-                ? // @ts-ignore
-                  { description: feature.schema.description }
-                : {}),
-            }
-            return acc.concat(obj)
-          },
-          [] as { name: string; description?: string }[]
-        )
-        return createMcpResponse(result)
+        return createMcpResponse({ features })
       }),
     }
   }
@@ -262,18 +311,60 @@ export const create = <TConfig extends McpServerConfig & Config>(
   }
 
   const startHereMcpTool = (): McpTool => {
-    const startHereData = context.config[McpNamespace].startHere || {
-      name: 'START_HERE',
-      description:
-        'BEFORE YOU DO ANYTHING, you should call this tool first!!! It provides a robust description about the system and how to use it.',
-    }
+    const startHereData = context.config[McpNamespace].startHere ?? {}
     return {
-      name: startHereData.name,
-      description: startHereData.description,
+      name: startHereData.name ?? 'START_HERE',
+      description:
+        startHereData.description ??
+        'BEFORE YOU DO ANYTHING, you should call this tool first!!! It provides a robust description about the system and how to use it.',
       inputSchema: { type: 'object', properties: {}, required: [] },
       // @ts-ignore
       outputSchema: { type: 'object', additionalProperties: true },
     }
+  }
+
+  const _getSystemEntries = () => {
+    const startHereConfig = context.config[McpNamespace].startHere
+    const shouldHideAlltogether = startHereConfig?.hideDefaultSystemEntries
+    if (shouldHideAlltogether) {
+      return []
+    }
+    if (context.config[McpNamespace].hideComponents?.allModels) {
+      return nilSystem.filter(x => !x.name.startsWith('Model CRUD'))
+    }
+    return nilSystem
+  }
+
+  const _getDomainsSystemEntry = () => {
+    const startHereConfig = context.config[McpNamespace].startHere
+    const includeDomains = startHereConfig?.includeDomains
+    if (includeDomains) {
+      return [
+        {
+          name: 'List of Domains',
+          description:
+            'A list of all the domains on the system. This is the output of the list_domains tool.',
+          domains: _listDomains(context),
+        },
+      ]
+    }
+    return []
+  }
+
+  const _getListFeaturesSystemEntries = () => {
+    const startHereConfig = context.config[McpNamespace].startHere
+    const includeFeatures = startHereConfig?.includeFeatures
+    if (includeFeatures) {
+      const domains = _listDomains(context)
+      return domains.map(domain => {
+        return {
+          name: `List of Features for ${domain.name}`,
+          description: `A list of all the features for the ${domain.name} domain. This is the output of the list_features tool for the ${domain.name} domain. You will still need to call describe_feature to get the schema of a given feature.`,
+          features: _listFeaturesOfDomain(context, domain.name),
+        }
+      })
+    }
+    return []
   }
 
   const _startHereTool = (): ServerTool => {
@@ -281,8 +372,10 @@ export const create = <TConfig extends McpServerConfig & Config>(
       ...startHereMcpTool(),
       execute: commonMcpExecute(async () => {
         const systemDescription = context.config[McpNamespace].systemDescription
+        const startHereConfig = context.config[McpNamespace].startHere
+        const examplesOfUse = startHereConfig?.examplesOfUse || []
         const systemName = context.config.systemName
-        const systemEntries = nilSystem
+        const systemEntries = _getSystemEntries()
         const systemNameExample: SystemUseExample = {
           name: 'systemName',
           value: systemName,
@@ -299,8 +392,10 @@ export const create = <TConfig extends McpServerConfig & Config>(
           systemNameExample,
           systemDescriptionExample,
           systemVersionExample,
-          ...(systemDescription?.examplesOfUse || []),
+          ...examplesOfUse,
           ...systemEntries,
+          ..._getDomainsSystemEntry(),
+          ..._getListFeaturesSystemEntries(),
         ]
         return createMcpResponse({
           entries,

@@ -10,7 +10,12 @@ import { Config, LogLevelNames, LayerContext } from '@node-in-layers/core'
 import { Express } from 'express'
 import { JsonAble } from 'functional-models'
 
-type Connection =
+export type HttpConnection = ServerHttpConfig['server']
+export type CliConnection = ServerCliConfig['server']
+export type SseConnection = ServerSseConfig['server']
+export type StatelessHttpConnection = ServerStatelessHttpConfig['server']
+
+export type Connection =
   | ServerHttpConfig
   | ServerCliConfig
   | ServerSseConfig
@@ -53,17 +58,33 @@ export type McpServerConfig = Readonly<{
       connection: Connection
     }
     /**
-     * Overrides for the start here tool.
+     * Configuration for the start-here tool (name, description, and what to include in its response).
      */
     startHere?: {
       /**
        * Overrides the name of the tool. Default: 'START_HERE'
        */
-      name: string
+      name?: string
       /**
        * Overrides the description of the tool.
        */
-      description: string
+      description?: string
+      /**
+       * Completely hides default system entries (built-in navigation docs). Generally not recommended.
+       */
+      hideDefaultSystemEntries?: boolean
+      /**
+       * When true, the start-here response includes the list of domains (as if list_domains had been called).
+       */
+      includeDomains?: boolean
+      /**
+       * When true, the start-here response includes the list of features per domain (as if list_features had been called). Implies includeDomains.
+       */
+      includeFeatures?: boolean
+      /**
+       * Custom examples of use (flows) shown in the start-here response. Prefer JSON object examples with minimal annotation.
+       */
+      examplesOfUse?: ReadonlyArray<SystemUseExample>
     }
     /**
      * (Deprecated) Dot paths, to hide from the server.
@@ -94,13 +115,11 @@ export type McpServerConfig = Readonly<{
       allModels?: boolean
     }
     /**
-     * Ability to set information about the system so that it can be fed to AI consumers.
-     *
+     * Static system metadata shown in the start-here response (description, version).
      */
     systemDescription?: {
       description?: string
       version?: string
-      examplesOfUse?: ReadonlyArray<SystemUseExample>
     }
     /**
      * Logging configuration.

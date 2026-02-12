@@ -1,9 +1,9 @@
 [
   {
     "id": "2e19b8bf-2a4f-4f3c-9b7e-0f10c9e55c01",
-    "name": "What is a Node-In-Layers (NIL) system?",
+    "name": "This is a domain layered system.",
     "tags": ["intro", "layers", "models"],
-    "details": "A Node-In-Layers (NIL) system organizes application code into cohesive apps and layered responsibilities. Key default layers: globals (shared config and infra), services (talk to the outside world: DBs, APIs, files), features (business flows orchestrating steps), and entries (starting points like REST, CLI, serverless). Models are first-class: they define validated data structures and, when configured with an ORM, expose CRUDS APIs across services and features. This document focuses on how to navigate and use a NIL system via the MCP server tools."
+    "details": "This system is a series of features that are organized into cohesive domains. Each domain can also export CRUDS access to models, if it chooses to. Domains can be listed, features can be listed, described and called, and so can models."
   },
   {
     "id": "7c0c9643-92f4-4603-984d-3a25b9bd3a28",
@@ -80,7 +80,7 @@
     "id": "a0a1c3cf-7f3f-4e4b-9f1e-2b1a9a7b11aa",
     "name": "list_domains",
     "tags": ["mcp", "nil", "discovery"],
-    "details": "Lists domains available in the system (from NIL features context). Hidden domains are omitted by server policy.",
+    "details": "Lists domains shows the domains available for access.",
     "example": {
       "request": {
         "tool": "list_domains",
@@ -99,7 +99,7 @@
     "id": "f3b7b0d1-0d4e-4a25-9c76-8a7ef0f2d3c2",
     "name": "list_features",
     "tags": ["mcp", "nil", "discovery", "features"],
-    "details": "Lists callable business features for a domain. Use before execute_feature to see options.",
+    "details": "Lists callable business features for a domain. Use before execute_feature to get the exact input schema for a feature.",
     "example": {
       "request": {
         "tool": "list_features",
@@ -121,7 +121,7 @@
     "id": "3f2f4a9a-4d75-41f0-b1a9-3b7f5a223c17",
     "name": "describe_feature",
     "tags": ["mcp", "nil", "schema", "features"],
-    "details": "Returns an OpenAPI-like schema for a feature. If the feature is NIL-annotated, the full schema is derived; otherwise, a generic schema is produced.",
+    "details": "Returns an OpenAPI-like schema for a feature.",
     "example": {
       "request": {
         "tool": "describe_feature",
@@ -311,5 +311,11 @@
     "example": {
       "markdown": "User asks: \"Reserve 1 unit of ABC-123 if available.\"\n\n1. list_domains {}\n   - Choose domain = inventory.\n2. list_features { domain: \"inventory\" } and list_models { domain: \"inventory\" }\n   - See feature reserveItem and model Inventories.\n3. describe_feature { domain: \"inventory\", featureName: \"checkItemAvailability\" }\n   - Confirm args: { sku: string, quantity: number }.\n4. execute_feature { domain: \"inventory\", featureName: \"checkItemAvailability\", args: { sku: \"ABC-123\", quantity: 1 }, crossLayerProps: { logging: { ids: [{ aiSessionId: \"8c2ab...\" }, { aiRequestId: \"f4c7a...\" }] } } }\n   - If available: true -> proceed.\n5. execute_feature { domain: \"inventory\", featureName: \"reserveItem\", args: { sku: \"ABC-123\", quantity: 1, userId: \"u-42\" }, crossLayerProps: { logging: { ids: [{ aiSessionId: \"8c2ab...\" }, { aiRequestId: \"f4c7a...\" }] } } }\n   - Returns reservationId.\n"
     }
+  },
+  {
+    "id": "0a1b2c3d-4e5f-4607-8a90-b1c2d3e4f507",
+    "name": "Working with the user",
+    "tags": ["user", "interaction"],
+    "details": "Unless the user asks for it don't explain Domain/Models of the system to the user. The features are the primary thing the user cares about, and only to the extent that YOU the AI call them. The details about what goes in them, only matters for them to run other features first. Knowing how to call and navigate this interface is YOUR (the AI)'s job."
   }
 ]

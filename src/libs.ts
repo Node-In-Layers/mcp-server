@@ -3,6 +3,7 @@ import merge from 'lodash/merge.js'
 import get from 'lodash/get.js'
 import {
   createErrorObject,
+  ErrorObject,
   isErrorObject,
   NilAnnotatedFunction,
   Response,
@@ -406,13 +407,13 @@ export const createMcpResponse = <T extends JsonAble>(
   }
 }
 
-export const createDomainNotFoundError = () =>
+export const createDomainNotFoundError = (): ErrorObject =>
   createErrorObject('DOMAIN_NOT_FOUND', 'Domain not found')
-export const createModelNotFoundError = () =>
+export const createModelNotFoundError = (): ErrorObject =>
   createErrorObject('MODEL_NOT_FOUND', 'Model not found')
-export const createFeatureNotFoundError = () =>
+export const createFeatureNotFoundError = (): ErrorObject =>
   createErrorObject('FEATURE_NOT_FOUND', 'Feature not found')
-export const createModelsNotFoundError = () =>
+export const createModelsNotFoundError = (): ErrorObject =>
   createErrorObject('MODELS_NOT_FOUND', 'Models not found')
 
 export const doesDomainNotExist = context => (domain: string) => {
