@@ -1,41 +1,60 @@
 import { randomUUID } from 'crypto'
+import z from 'zod'
 import get from 'lodash/get.js'
+import express from 'express'
+import bodyParser from 'body-parser'
+import cors from 'cors'
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
+import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js'
 import { Config, LayerContext } from '@node-in-layers/core'
-import { createSimpleServer } from '@l4t/mcp-ai/simple-server/index.js'
-import { ServerTool } from '@l4t/mcp-ai/simple-server/types.js'
-import { ExpressRoute, ExpressMiddleware } from '@l4t/mcp-ai/common/types.js'
 import {
   AppOptions,
   McpServerMcp,
   McpServerConfig,
   McpContext,
   McpNamespace,
+  McpTool,
+  ExpressOptions,
+  ExpressRoute,
+  ExpressMiddleware,
 } from './types.js'
 import { create as createModelsMcp } from './models.js'
 import { create as createNilMcp } from './nil.js'
+import {
+  buildMergedToolInput,
+  isZodSchema,
+  openApiToZodSchema,
+} from './internal-libs.js'
 
 const DEFAULT_RESPONSE_REQUEST_LOG_LEVEL = 'info'
+const DEFAULT_PORT = 3000
+const BAD_REQUEST_STATUS = 400
+const NOT_FOUND_STATUS = 404
+const UNHANDLED_REQUEST_STATUS = 405
 
 const create = (
   context: McpContext<McpServerConfig & Config>
 ): McpServerMcp => {
-  const tools: ServerTool[] = []
+  const tools: McpTool[] = []
   const sets: [string, any][] = []
   const preRouteMiddleware: ExpressMiddleware[] = []
   const additionalRoutes: ExpressRoute[] = []
-  const addTool = (tool: ServerTool) => {
+
+  const addTool = (tool: McpTool) => {
     // eslint-disable-next-line functional/immutable-data
     tools.push(tool)
   }
 
-  const _wrapToolsWithLogger = (tool: ServerTool): ServerTool => {
-    const execute = async (input: any) => {
+  const _wrapToolsWithLogger = (tool: McpTool): McpTool => {
+    // This execute is what the MCP SDK calls: (args, extra) where extra is RequestHandlerExtra.
+    // extra.requestInfo contains HTTP headers (and only headers) provided by the SDK transport.
+    const execute = async (input: any, extra?: any) => {
       const requestId = randomUUID()
       const logger = context.log
         .getIdLogger('logRequest', 'requestId', requestId)
-        .applyData({
-          requestId: requestId,
-        })
+        .applyData({ requestId })
       const level =
         context.config[McpNamespace].logging?.requestLogLevel ||
         DEFAULT_RESPONSE_REQUEST_LOG_LEVEL
@@ -50,15 +69,18 @@ const create = (
         ...requestData,
       })
 
-      const result = await tool.execute(input, {
-        logging: {
-          ids: logger.getIds(),
-        },
-      })
+      const { mergedInput, mergedCrossLayerProps } = buildMergedToolInput(
+        input,
+        extra,
+        logger
+      )
+
+      const result = await tool.execute(mergedInput, mergedCrossLayerProps)
       const data = get(result, 'content[0].text')
-      const toShow = data ? JSON.parse(data) : result
+      const toShow = data ? JSON.parse(data as string) : result
 
       const responseData =
+        // @ts-ignore — responseLogGetData receives the tool result, not a Request
         context.config[McpNamespace].logging?.responseLogGetData?.(result) || {}
       logger[level]('Request Response', {
         response: toShow,
@@ -68,70 +90,252 @@ const create = (
       return result
     }
 
-    return {
-      ...tool,
-      execute,
-    }
+    return { ...tool, execute }
   }
 
-  const _getModelsMcpTools = (systemContext: LayerContext<Config, any>) => {
+  const _buildAllTools = (
+    systemContext: LayerContext<Config, any>
+  ): McpTool[] => {
     const config = systemContext.config[McpNamespace]
-    if (config.hideComponents?.allModels) {
-      return []
-    }
-    const modelsMcp = createModelsMcp(systemContext)
-    return [
-      modelsMcp.listModels(),
-      modelsMcp.describe(),
-      modelsMcp.save(),
-      modelsMcp.retrieve(),
-      modelsMcp.delete(),
-      modelsMcp.search(),
-      modelsMcp.bulkInsert(),
-      modelsMcp.bulkDelete(),
-    ]
-  }
-
-  const _getServer = (
-    systemContext: LayerContext<Config, any>,
-    options?: AppOptions
-  ) => {
     const nilMcp = createNilMcp(systemContext)
-    const allTools = [
+    const modelTools = config.hideComponents?.allModels
+      ? []
+      : (() => {
+          const modelsMcp = createModelsMcp(systemContext)
+          return [
+            modelsMcp.listModels(),
+            modelsMcp.describe(),
+            modelsMcp.save(),
+            modelsMcp.retrieve(),
+            modelsMcp.delete(),
+            modelsMcp.search(),
+            modelsMcp.bulkInsert(),
+            modelsMcp.bulkDelete(),
+          ]
+        })()
+
+    return [
       nilMcp.startHere(),
       nilMcp.listDomains(),
       nilMcp.listFeatures(),
       nilMcp.describeFeature(),
       nilMcp.executeFeature(),
-      ..._getModelsMcpTools(systemContext),
+      ...modelTools,
       ...tools,
     ].map(_wrapToolsWithLogger)
-    const server = createSimpleServer(
-      {
-        name:
-          systemContext.config[McpNamespace].name ||
-          '@node-in-layers/mcp-server',
-        version: systemContext.config[McpNamespace].version || '1.0.0',
-        tools: allTools,
-        stateless: systemContext.config[McpNamespace].stateless,
-        server: systemContext.config[McpNamespace].server,
-      },
-      {
-        express: {
-          preRouteMiddleware,
-          additionalRoutes,
-          ...(options ? options : {}),
-        },
-      }
-    )
-    sets.forEach(([key, value]) => {
-      if ('set' in server) {
-        // @ts-ignore
-        server.set(key, value)
-      }
+  }
+
+  const _buildMcpServer = (
+    systemContext: LayerContext<Config, any>
+  ): McpServer => {
+    const config = systemContext.config[McpNamespace]
+    const server = new McpServer({
+      name: systemContext.config.systemName,
+      version: config.version || '1.0.0',
     })
+
+    _buildAllTools(systemContext).forEach(tool => {
+      const inputSchema = isZodSchema(tool.inputSchema)
+        ? tool.inputSchema
+        : z.object(openApiToZodSchema(tool.inputSchema))
+      const outputSchema = (() => {
+        const raw = tool.outputSchema
+        if (!raw) {
+          return undefined
+        }
+        // If already Zod, pass through (SDK validates structuredContent with it)
+        if (isZodSchema(raw)) {
+          return raw
+        }
+        // If OpenAPI/JSON-schema-ish object at root, convert to a Zod object schema.
+        // If it's null/array/anyOf/etc at root, return undefined (no output validation).
+        if (typeof raw === 'object' && (raw as any).type === 'object') {
+          return z.object(openApiToZodSchema(raw)).loose()
+        }
+        return undefined
+      })()
+      server.registerTool(
+        tool.name,
+        {
+          description: tool.description,
+          inputSchema,
+          ...(outputSchema ? { outputSchema } : {}),
+        },
+        tool.execute
+      )
+    })
+
     return server
   }
+
+  // ─── HTTP transport ────────────────────────────────────────────────────────
+
+  const _buildExpressOptions = (options?: AppOptions): ExpressOptions => ({
+    preRouteMiddleware,
+    additionalRoutes,
+    ...(options || {}),
+  })
+
+  const _buildHttpApp = async (
+    systemContext: LayerContext<Config, any>,
+    options?: AppOptions
+  ): Promise<express.Express> => {
+    const config = systemContext.config[McpNamespace]
+    const isStateful = Boolean(config.stateful)
+    // @ts-ignore
+    const path: string = config.server?.path || '/'
+    const expressOpts = _buildExpressOptions(options)
+
+    const app = express()
+    app.use(bodyParser.json(expressOpts.jsonBodyParser))
+    app.use(cors())
+    expressOpts.preRouteMiddleware?.forEach(middleware => app.use(middleware))
+
+    // Session map used only in stateful mode
+    const transports: { [sessionId: string]: StreamableHTTPServerTransport } =
+      {}
+
+    const _routeWrapper = (
+      func: (
+        req: express.Request,
+        res: express.Response
+      ) => Promise<void> | void
+    ) => {
+      if (expressOpts.afterRouteCallback) {
+        return async (req: express.Request, res: express.Response) => {
+          await func(req, res)
+          // @ts-ignore
+          await expressOpts.afterRouteCallback(req, res)
+        }
+      }
+      return func
+    }
+
+    const handleStatelessRequest = async (
+      req: express.Request,
+      res: express.Response
+    ) => {
+      const server = _buildMcpServer(systemContext)
+      const transport = new StreamableHTTPServerTransport({
+        sessionIdGenerator: undefined,
+        enableJsonResponse: true,
+      })
+      res.on('close', () => {
+        transport.close()
+        server.close()
+      })
+      await server.connect(transport)
+      await transport.handleRequest(req, res, req.body)
+    }
+
+    const handleStatefulRequest = async (
+      req: express.Request,
+      res: express.Response
+    ) => {
+      const sessionId = req.headers['mcp-session-id'] as string | undefined
+      // eslint-disable-next-line functional/no-let
+      let transport: StreamableHTTPServerTransport
+
+      if (sessionId && transports[sessionId]) {
+        transport = transports[sessionId]
+      } else if (!sessionId && isInitializeRequest(req.body)) {
+        const server = _buildMcpServer(systemContext)
+        transport = new StreamableHTTPServerTransport({
+          sessionIdGenerator: () => randomUUID(),
+          enableJsonResponse: true,
+          onsessioninitialized: newSessionId => {
+            // eslint-disable-next-line functional/immutable-data
+            transports[newSessionId] = transport
+          },
+        })
+        // eslint-disable-next-line functional/immutable-data
+        transport.onclose = () => {
+          if (transport.sessionId) {
+            // eslint-disable-next-line functional/immutable-data
+            delete transports[transport.sessionId]
+          }
+        }
+        await server.connect(transport)
+      } else {
+        res.status(BAD_REQUEST_STATUS).json({
+          jsonrpc: '2.0',
+          error: {
+            code: -32000,
+            message: 'Bad Request: No valid session ID provided',
+          },
+          id: null,
+        })
+        return
+      }
+
+      await transport.handleRequest(req, res, req.body)
+    }
+
+    const handleSessionRequest = async (
+      req: express.Request,
+      res: express.Response
+    ) => {
+      const sessionId = req.headers['mcp-session-id'] as string | undefined
+      if (!sessionId || !transports[sessionId]) {
+        res.status(BAD_REQUEST_STATUS).send('Invalid or missing session ID')
+        return
+      }
+      await transports[sessionId].handleRequest(req, res)
+    }
+
+    const _unhandledRequest = (
+      _req: express.Request,
+      res: express.Response
+    ) => {
+      res.writeHead(UNHANDLED_REQUEST_STATUS).end(
+        JSON.stringify({
+          jsonrpc: '2.0',
+          error: { code: -32000, message: 'Method not allowed.' },
+          id: null,
+        })
+      )
+    }
+
+    expressOpts.additionalRoutes?.forEach(route => {
+      app[route.method.toLowerCase()](route.path, route.handler)
+    })
+
+    app.post(
+      path,
+      _routeWrapper(isStateful ? handleStatefulRequest : handleStatelessRequest)
+    )
+
+    if (isStateful) {
+      app.get(path, _routeWrapper(handleSessionRequest))
+      app.delete(path, _routeWrapper(handleSessionRequest))
+    } else {
+      app.get(path, _routeWrapper(_unhandledRequest))
+      app.delete(path, _routeWrapper(_unhandledRequest))
+    }
+
+    app.use(
+      _routeWrapper((_req, res) => {
+        res.status(NOT_FOUND_STATUS).json({
+          error: 'Not Found',
+          message: `The requested URL ${_req.url} was not found on this server`,
+          status: NOT_FOUND_STATUS,
+        })
+      })
+    )
+
+    sets.forEach(([key, value]) => app.set(key, value))
+    return app
+  }
+
+  // ─── CLI transport ─────────────────────────────────────────────────────────
+
+  const _startCli = async (systemContext: LayerContext<Config, any>) => {
+    const server = _buildMcpServer(systemContext)
+    const transport = new StdioServerTransport()
+    await server.connect(transport)
+  }
+
+  // ─── Public API ────────────────────────────────────────────────────────────
 
   const addPreRouteMiddleware = (middleware: ExpressMiddleware) => {
     // eslint-disable-next-line functional/immutable-data
@@ -147,18 +351,32 @@ const create = (
     systemContext: LayerContext<T, any>,
     options?: AppOptions
   ) => {
-    const server = _getServer(systemContext, options)
-    await server.start()
+    const connectionType =
+      systemContext.config[McpNamespace].server.connection.type
+    if (connectionType === 'cli') {
+      await _startCli(systemContext)
+    } else if (connectionType === 'http') {
+      const app = await _buildHttpApp(systemContext, options)
+      // @ts-ignore
+      const port =
+        (systemContext.config[McpNamespace].server.connection as any).port ||
+        DEFAULT_PORT
+      app.listen(port)
+    } else {
+      throw new Error(`Unsupported connection type: ${connectionType}`)
+    }
   }
 
-  const getApp = (options?: AppOptions) => {
-    const server = _getServer(options)
-    // @ts-ignore
-    if (!server?.getApp) {
-      throw new Error(`Server not http or sse`)
+  const getApp = async (
+    systemContext: LayerContext<Config, any>,
+    options?: AppOptions
+  ): Promise<express.Express> => {
+    const connectionType =
+      systemContext.config[McpNamespace].server.connection.type
+    if (connectionType !== 'http') {
+      throw new Error(`getApp is only supported for HTTP connections`)
     }
-    // @ts-ignore
-    return server.getApp()
+    return _buildHttpApp(systemContext, options)
   }
 
   const set = (key: string, value: any) => {
@@ -175,43 +393,5 @@ const create = (
     set,
   }
 }
-
-/**
- * Automatically adds all the models in the given domain to the MCP server.
- * @param namespace The namespace of the domain to add the models from.
- * @param opts Options for the tool name generator.
- * @returns A function that can be used to add the models to the MCP server.
- */
-/*
-const mcpModels = <TConfig extends Config = Config>(
-  namespace: string,
-  context: McpContext<TConfig>
-) => {
-  const mcpFunctions = context.mcp[McpNamespace]
-  const namedFeatures = get(context, `features.${namespace}`)
-  if (!namedFeatures) {
-    throw new Error(
-      `features.${namespace} does not exist on context needed for mcp.`
-    )
-  }
-  // Look for CRUDS functions.
-  Object.entries(namedFeatures).forEach(
-    ([key, value]: [key: string, value: any]) => {
-      if (typeof value === 'object') {
-        if (key === 'cruds') {
-          Object.entries(value).forEach(([, modelCrudFuncs]) => {
-            mcpFunctions.addModelCruds(
-              modelCrudFuncs as ModelCrudsFunctions<any>
-            )
-          })
-        }
-      }
-    },
-    {}
-  )
-
-  return {}
-}
-*/
 
 export { create }

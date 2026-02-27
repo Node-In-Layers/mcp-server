@@ -1,0 +1,5 @@
+{
+  "name": "@node-in-layers/mcp-server",
+  "description": "The MCP Server library for @node-in-layer systems",
+  "isPackage": true
+}

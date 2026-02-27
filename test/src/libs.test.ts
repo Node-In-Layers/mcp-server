@@ -40,34 +40,22 @@ describe('/src/libs.ts', () => {
     it('should return the same response if its already an MCP response', async () => {
       const fn = () => Promise.resolve(createMcpResponse({}))
       const actual = await commonMcpExecute(fn)()
-      const expected = {
-        content: [{ type: 'text', text: '{}' }],
-      }
+      const expected = createMcpResponse({})
       // @ts-ignore
       assert.deepEqual(actual, expected)
     })
     it('should format properly format a response when its just an object', async () => {
       const fn = () => Promise.resolve({})
       const actual = await commonMcpExecute(fn)()
-      const expected = {
-        content: [{ type: 'text', text: '{}' }],
-      }
+      const expected = createMcpResponse({})
       // @ts-ignore
       assert.deepEqual(actual, expected)
     })
     it('should format properly format a response when its an error object', async () => {
-      const fn = () =>
-        Promise.resolve(createErrorObject('TEST_ERROR', 'Test error'))
+      const err = createErrorObject('TEST_ERROR', 'Test error')
+      const fn = () => Promise.resolve(err)
       const actual = await commonMcpExecute(fn)()
-      const expected = {
-        isError: true,
-        content: [
-          {
-            type: 'text',
-            text: '{"error":{"code":"TEST_ERROR","message":"Test error"}}',
-          },
-        ],
-      }
+      const expected = createMcpResponse(err, { isError: true })
       // @ts-ignore
       assert.deepEqual(actual, expected)
     })
@@ -77,45 +65,39 @@ describe('/src/libs.ts', () => {
           createErrorObject('TEST_ERROR', 'Test error', new Error('Test cause'))
         )
       const actual = await commonMcpExecute(fn)()
-      const expected = {
-        isError: true,
-        content: [
-          {
-            type: 'text',
-            text: '{"error":{"code":"TEST_ERROR","message":"Test error","details":"Test cause","errorDetails":"Error: Test cause"}}',
-          },
-        ],
-      }
+      assert.isTrue(actual.isError)
       // @ts-ignore
-      assert.deepEqual(actual, expected)
+      const parsed = JSON.parse(actual.content[0].text)
+      assert.deepInclude(parsed.error, {
+        code: 'TEST_ERROR',
+        message: 'Test error',
+        details: 'Test cause',
+      })
+      assert.property(parsed.error, 'cause')
     })
     it('should properly format if there is an exception thrown', async () => {
       const fn = () => Promise.reject(new Error('Test exception'))
       const actual = await commonMcpExecute(fn)()
-      const expected = {
-        isError: true,
-        content: [
-          {
-            type: 'text',
-            text: '{"error":{"code":"UNCAUGHT_EXCEPTION","message":"An uncaught exception occurred while executing the feature."}}',
-          },
-        ],
-      }
+      assert.isTrue(actual.isError)
+      // @ts-ignore
+      const parsed = JSON.parse(actual.content[0].text)
+      assert.deepInclude(parsed.error, {
+        code: 'UNCAUGHT_EXCEPTION',
+        message: 'An uncaught exception occurred while executing the feature.',
+      })
     })
-    it('should properly format if there is an exception thrown', async () => {
+    it('should include error details and cause when an exception is thrown', async () => {
       const fn = () => Promise.reject(new Error('Test exception'))
       const actual = await commonMcpExecute(fn)()
-      const expected = {
-        isError: true,
-        content: [
-          {
-            type: 'text',
-            text: '{"error":{"code":"UNCAUGHT_EXCEPTION","message":"An uncaught exception occurred while executing the feature.","details":"Test exception","errorDetails":"Error: Test exception"}}',
-          },
-        ],
-      }
+      assert.isTrue(actual.isError)
       // @ts-ignore
-      assert.deepEqual(actual, expected)
+      const parsed = JSON.parse(actual.content[0].text)
+      assert.deepInclude(parsed.error, {
+        code: 'UNCAUGHT_EXCEPTION',
+        message: 'An uncaught exception occurred while executing the feature.',
+        details: 'Test exception',
+      })
+      assert.property(parsed.error, 'cause')
     })
   })
   describe('#nilAnnotatedFunctionToOpenApi()', () => {

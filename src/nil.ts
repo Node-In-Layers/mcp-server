@@ -6,8 +6,13 @@ import {
   isErrorObject,
   memoizeValueSync,
 } from '@node-in-layers/core'
-import { McpTool } from '@l4t/mcp-ai/common/types.js'
-import { ServerTool } from '@l4t/mcp-ai/simple-server/types.js'
+import {
+  McpTool,
+  McpToolSchema,
+  McpNamespace,
+  McpServerConfig,
+  SystemUseExample,
+} from './types.js'
 import {
   createDomainNotFoundError,
   createMcpResponse,
@@ -24,9 +29,8 @@ import {
   doesDomainNotExist,
 } from './libs.js'
 import { default as nilSystem } from './docs/node-in-layers-system.json' with { type: 'json' }
-import { McpNamespace, McpServerConfig, SystemUseExample } from './types.js'
 
-const describeFeatureMcpTool = (): McpTool => {
+const describeFeatureMcpTool = (): McpToolSchema => {
   return {
     name: 'describe_feature',
     description: 'Gets the schema of a given feature',
@@ -47,7 +51,7 @@ const describeFeatureMcpTool = (): McpTool => {
   }
 }
 
-const listFeaturesMcpTool = (): McpTool => {
+const listFeaturesMcpTool = (): McpToolSchema => {
   return {
     name: 'list_features',
     description: 'Gets a list of features for a given domain',
@@ -78,7 +82,7 @@ const listFeaturesMcpTool = (): McpTool => {
   }
 }
 
-const executeFeatureMcpTool = (): McpTool => {
+const executeFeatureMcpTool = (): McpToolSchema => {
   return {
     name: 'execute_feature',
     description: 'Executes a given feature',
@@ -100,7 +104,7 @@ const executeFeatureMcpTool = (): McpTool => {
   }
 }
 
-const listDomainsMcpTool = (): McpTool => {
+const listDomainsMcpTool = (): McpToolSchema => {
   return {
     name: 'list_domains',
     description:
@@ -231,17 +235,17 @@ export const create = <TConfig extends McpServerConfig & Config>(
   const isDomainHiddenFunc = isDomainHidden(hiddenPaths, context.config)
   const isFeatureHiddenFunc = isFeatureHidden(hiddenPaths, context.config)
 
-  const _listDomainsTool = (): ServerTool => {
+  const _listDomainsTool = (): McpTool => {
     return {
       ...listDomainsMcpTool(),
       execute: commonMcpExecute(async () => {
         const domains = _listDomains(context)
-        return createMcpResponse(domains)
+        return createMcpResponse({ domains })
       }),
     }
   }
 
-  const _describeFeatureTool = (): ServerTool => {
+  const _describeFeatureTool = (): McpTool => {
     return {
       ...describeFeatureMcpTool(),
       execute: commonMcpExecute(async (input: any) => {
@@ -264,7 +268,7 @@ export const create = <TConfig extends McpServerConfig & Config>(
     }
   }
 
-  const _listFeaturesTool = (): ServerTool => {
+  const _listFeaturesTool = (): McpTool => {
     return {
       ...listFeaturesMcpTool(),
       execute: commonMcpExecute(async (input: any) => {
@@ -278,7 +282,7 @@ export const create = <TConfig extends McpServerConfig & Config>(
     }
   }
 
-  const _executeFeatureTool = (): ServerTool => {
+  const _executeFeatureTool = (): McpTool => {
     return {
       ...executeFeatureMcpTool(),
       execute: commonMcpExecute(async (input: any) => {
@@ -310,7 +314,7 @@ export const create = <TConfig extends McpServerConfig & Config>(
     }
   }
 
-  const startHereMcpTool = (): McpTool => {
+  const startHereMcpTool = (): McpToolSchema => {
     const startHereData = context.config[McpNamespace].startHere ?? {}
     return {
       name: startHereData.name ?? 'START_HERE',
@@ -367,7 +371,7 @@ export const create = <TConfig extends McpServerConfig & Config>(
     return []
   }
 
-  const _startHereTool = (): ServerTool => {
+  const _startHereTool = (): McpTool => {
     return {
       ...startHereMcpTool(),
       execute: commonMcpExecute(async () => {

@@ -17,8 +17,6 @@ import {
   Config,
 } from '@node-in-layers/core'
 import { modelToOpenApi } from 'functional-models-openapi'
-import { ServerTool } from '@l4t/mcp-ai/simple-server/types.js'
-import { McpTool } from '@l4t/mcp-ai/common/types.js'
 import { asyncMap } from 'modern-async'
 import {
   isDomainHidden,
@@ -32,9 +30,14 @@ import {
   cleanupSearchQuery,
   doesDomainNotExist,
 } from './libs.js'
-import { McpNamespace, McpServerConfig } from './types.js'
+import {
+  McpNamespace,
+  McpServerConfig,
+  McpTool,
+  McpToolSchema,
+} from './types.js'
 
-const describeModelMcpTool = (): McpTool => {
+const describeModelMcpTool = (): McpToolSchema => {
   return {
     name: 'describe_model',
     description: 'Gets the schema of a given model',
@@ -54,7 +57,7 @@ const describeModelMcpTool = (): McpTool => {
   }
 }
 
-const listModelsMcpTool = (): McpTool => {
+const listModelsMcpTool = (): McpToolSchema => {
   return {
     name: 'list_models',
     description:
@@ -101,7 +104,7 @@ export const create = <TConfig extends McpServerConfig & Config>(
   const areAllModelsHiddenFunc = areAllModelsHidden(hiddenPaths, context.config)
   const isModelHiddenFunc = isModelHidden(hiddenPaths, context.config)
 
-  const listModels = (): ServerTool => {
+  const listModels = (): McpTool => {
     return {
       ...listModelsMcpTool(),
       execute: commonMcpExecute(async (input: any) => {
@@ -135,12 +138,12 @@ export const create = <TConfig extends McpServerConfig & Config>(
           },
           [] as { modelType: string; description?: string }[]
         )
-        return createMcpResponse(result)
+        return createMcpResponse({ models: result })
       }),
     }
   }
 
-  const describe = (): ServerTool => {
+  const describe = (): McpTool => {
     return {
       ...describeModelMcpTool(),
       execute: commonMcpExecute(async (input: any) => {
@@ -210,7 +213,7 @@ export const create = <TConfig extends McpServerConfig & Config>(
     })
   }
 
-  const save = (): ServerTool => {
+  const save = (): McpTool => {
     return {
       ...createMcpToolSave(),
       execute: _createMcpModelFunc(async (input: any, model) => {
@@ -233,7 +236,7 @@ export const create = <TConfig extends McpServerConfig & Config>(
     }
   }
 
-  const retrieve = (): ServerTool => {
+  const retrieve = (): McpTool => {
     return {
       ...createMcpToolRetrieve(),
       execute: _createMcpModelFunc(async (input: any, model) => {
@@ -246,7 +249,7 @@ export const create = <TConfig extends McpServerConfig & Config>(
     }
   }
 
-  const deleteFunc = (): ServerTool => {
+  const deleteFunc = (): McpTool => {
     return {
       ...createMcpToolDelete(),
       execute: _createMcpModelFunc(async (input: any, model) => {
@@ -256,7 +259,7 @@ export const create = <TConfig extends McpServerConfig & Config>(
     }
   }
 
-  const search = (): ServerTool => {
+  const search = (): McpTool => {
     return {
       ...createMcpToolSearch(),
       execute: _createMcpModelFunc(async (input: any, model) => {
@@ -268,7 +271,7 @@ export const create = <TConfig extends McpServerConfig & Config>(
     }
   }
 
-  const bulkInsert = (): ServerTool => {
+  const bulkInsert = (): McpTool => {
     return {
       ...createMcpToolBulkInsert(),
       execute: _createMcpModelFunc(async (input: any, model) => {
@@ -279,7 +282,7 @@ export const create = <TConfig extends McpServerConfig & Config>(
     }
   }
 
-  const bulkDelete = (): ServerTool => {
+  const bulkDelete = (): McpTool => {
     return {
       ...createMcpToolBulkDelete(),
       execute: _createMcpModelFunc(async (input: any, model) => {

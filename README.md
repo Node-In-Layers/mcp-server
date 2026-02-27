@@ -4,6 +4,8 @@ A Node In Layers package for building MCP servers. It exposes your domains, feat
 
 This system is `self-describing` and automatically organizes tools into an optimized and efficient system, that reduces the total number of tools. This system also automatically includes prompting and examples that greatly increase AI tool selection and formatting accuracy in systems, to include in systems with hundreds, if not thousands of tools.
 
+[API Docs](https://node-in-layers.github.io/mcp-server/)
+
 ---
 
 ## How To Use This
@@ -34,7 +36,7 @@ export default () => ({
 
       // Insert Your Domains Here
     ]),
-    /* 2. Add mcp layer */
+    /* 2. Add mcp layer. NOTE: You must have entries between features and mcp */
     layerOrder: ['services', 'features', ['entries', 'mcp']], // can also be ['entries', 'express', 'mcp']
   },
   /* 3. Add Mcp Server Configurations */

@@ -21,6 +21,9 @@ const compat = new FlatCompat({
 export default [
   {
     ignores: [
+      'features/',
+      'cucumber.mjs',
+      'buildDocs/',
       'config.*.mjs',
       'coverage/',
       'dist/',

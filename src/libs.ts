@@ -1,6 +1,7 @@
 import flow from 'lodash/flow.js'
 import merge from 'lodash/merge.js'
 import get from 'lodash/get.js'
+import express from 'express'
 import {
   createErrorObject,
   ErrorObject,
@@ -14,7 +15,62 @@ import {
   McpNamespace,
   McpServerConfig,
   OpenApiFunctionDescription,
+  RequestCrossLayerProps,
+  RequestInfo,
 } from './types.js'
+
+export const isMcpCrossLayerProps = (
+  props: any
+): props is RequestCrossLayerProps => {
+  if (typeof props !== 'object' || props === null) {
+    return false
+  }
+  return props.requestInfo !== undefined
+}
+
+export const buildRequestInfoFromExpressRequest = (
+  req: express.Request
+): RequestInfo => {
+  const headers: Record<string, string> = Object.entries(req.headers).reduce(
+    (acc, [key, value]) => {
+      if (Array.isArray(value)) {
+        return merge(acc, { [key]: value.join(', ') })
+      } else if (value !== undefined) {
+        return merge(acc, { [key]: String(value) })
+      }
+      return acc
+    },
+    {} as Record<string, string>
+  )
+
+  const body =
+    req.body && typeof req.body === 'object' && !Array.isArray(req.body)
+      ? (req.body as Record<string, any>)
+      : {}
+
+  const query: Record<string, string> = Object.entries(req.query).reduce(
+    (acc, [key, value]) => {
+      if (Array.isArray(value)) {
+        return merge(acc, { [key]: value.join(',') })
+      } else if (value !== null && value !== undefined) {
+        return merge(acc, { [key]: String(value) })
+      }
+      return acc
+    },
+    {} as Record<string, string>
+  )
+
+  return {
+    headers,
+    body,
+    query,
+    params: req.params as Record<string, string>,
+    path: req.path,
+    method: req.method,
+    url: req.originalUrl,
+    protocol: req.protocol,
+  }
+}
 
 export const isNilAnnotatedFunction = (
   fn: any
@@ -396,6 +452,19 @@ export const createMcpResponse = <T extends JsonAble>(
   opts?: { isError?: boolean }
 ): CallToolResult => {
   const isError = opts?.isError || isErrorObject(result)
+
+  const structuredContent: Record<string, unknown> | undefined = (() => {
+    if (result === null || result === undefined) {
+      return undefined
+    }
+    // MCP structuredContent must be an object at the root.
+    // Don't reshape arrays/primitives here — tools should return objects that match their outputSchema.
+    if (typeof result === 'object' && !Array.isArray(result)) {
+      return result as Record<string, unknown>
+    }
+    return undefined
+  })()
+
   return {
     ...(isError ? { isError: true } : {}),
     content: [
@@ -404,6 +473,7 @@ export const createMcpResponse = <T extends JsonAble>(
         text: JSON.stringify(result !== undefined ? result : '""'),
       },
     ],
+    ...(structuredContent ? { structuredContent } : {}),
   }
 }
 
