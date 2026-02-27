@@ -19,7 +19,7 @@ import {
   RequestInfo,
 } from './types.js'
 
-export const isMcpCrossLayerProps = (
+export const isRequestCrossLayerProps = (
   props: any
 ): props is RequestCrossLayerProps => {
   if (typeof props !== 'object' || props === null) {
