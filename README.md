@@ -306,6 +306,7 @@ Use **start** when the MCP server is the main process. Use **getApp** when you c
 ## Middleware and routes
 
 - **addPreRouteMiddleware(middleware)** — Add Express middleware that runs before MCP route handling.
+- **addCrossLayerPropMiddleware(middleware)** — Add middleware to extract and pass request-level data (e.g., an authenticated `user`) into cross-layer properties for downstream functions to consume.
 - **addAdditionalRoute(route)** — Register an extra Express route (e.g. health or admin) on the same app.
 
 Call these during setup (e.g. from a layer that has access to `mcp[McpNamespace]`) before the server is started or the app is used.

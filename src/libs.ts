@@ -8,6 +8,7 @@ import {
   isErrorObject,
   NilAnnotatedFunction,
   Response,
+  combineCrossLayerProps,
 } from '@node-in-layers/core'
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { JsonAble } from 'functional-models'

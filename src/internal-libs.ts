@@ -1,8 +1,10 @@
+import express from 'express'
 import merge from 'lodash/merge.js'
 import { JsonObj } from 'functional-models'
 import {
   combineCrossLayerProps,
   createCrossLayerProps,
+  CrossLayerProps,
   Logger,
   NilAnnotatedFunction,
   XOR,
@@ -14,6 +16,7 @@ import {
   OpenApiFunctionDescription,
   RequestInfo,
 } from './types.js'
+import { buildRequestInfoFromExpressRequest } from './libs.js'
 
 const _firstDefined = <T>(...vals: readonly (T | undefined)[]) =>
   vals.find(v => v !== undefined)
@@ -345,43 +348,9 @@ export const zodToJson = (schema: any): Record<string, any> => {
 }
 
 /**
- * Converts the MCP SDK's RequestHandlerExtra into our local RequestInfo.
- * The SDK only provides HTTP headers; all other fields default to empty values
- * since they are not available through the SDK transport layer.
- */
-export const buildRequestInfoFromSdkExtra = (extra?: any): RequestInfo => {
-  const sdkHeaders = extra?.requestInfo?.headers || {}
-  const headers: Record<string, string> = Object.entries(
-    sdkHeaders as Record<string, unknown>
-  ).reduce(
-    (acc, [key, value]) => {
-      if (Array.isArray(value)) {
-        return merge(acc, { [key]: value.join(', ') })
-      } else if (value !== undefined) {
-        return merge(acc, { [key]: String(value) })
-      }
-      return acc
-    },
-    {} as Record<string, string>
-  )
-  return {
-    headers,
-    body: {},
-    query: {},
-    params: {},
-    path: '',
-    method: '',
-    url: '',
-    protocol: '',
-  }
-}
-
-/**
  * Extracts AuthInfo from the MCP SDK's RequestHandlerExtra.authInfo, if present.
  */
-export const buildAuthInfoFromSdkExtra = (
-  extra?: any
-): AuthInfo | undefined => {
+export const buildAuthInfoFromReq = (extra?: any): AuthInfo | undefined => {
   const sdkAuthInfo = extra?.authInfo
   if (!sdkAuthInfo) {
     return undefined
@@ -411,21 +380,25 @@ export const buildAuthInfoFromSdkExtra = (
  * 4. logger IDs — appended via createCrossLayerProps
  */
 export const buildMergedToolInput = (
+  req: express.Request,
   input: any,
-  extra: any,
+  extendedCrossLayerProps: CrossLayerProps | undefined,
   logger: Logger
 ): { mergedInput: any; mergedCrossLayerProps: any } => {
-  const requestInfo = buildRequestInfoFromSdkExtra(extra)
-  const authInfo = buildAuthInfoFromSdkExtra(extra)
+  const requestInfo = buildRequestInfoFromExpressRequest(req)
+  const authInfo = buildAuthInfoFromReq(req)
 
   const mergedCrossLayerProps = createCrossLayerProps(
     logger,
     combineCrossLayerProps(
       combineCrossLayerProps(
-        input?.crossLayerProps || {},
-        input?.args?.crossLayerProps || {}
+        combineCrossLayerProps(
+          input?.crossLayerProps || {},
+          input?.args?.crossLayerProps || {}
+        ),
+        { requestInfo, ...(authInfo ? { authInfo } : {}) }
       ),
-      { requestInfo, ...(authInfo ? { authInfo } : {}) }
+      extendedCrossLayerProps || {}
     )
   )
 

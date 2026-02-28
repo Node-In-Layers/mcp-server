@@ -535,6 +535,26 @@ export type RequestCrossLayerProps = Readonly<{
 // ─── Public MCP layer API ─────────────────────────────────────────────────────
 
 /**
+ * A middleware function that can pullout information that will be put into the cross layer props
+ * and passed down stream with the request.
+ * @interface
+ */
+export type CrossLayerPropMiddleware = (
+  /**
+   * The express request object.
+   */
+  req: express.Request,
+  /**
+   * The express response object.
+   */
+  res: express.Response,
+  /**
+   * The next function to call.
+   */
+  next: express.NextFunction
+) => Promise<Record<string, any> | void>
+
+/**
  * @interface
  * The public interface returned by `create()` in `mcp.ts` and stored in the
  * MCP layer of the Node-in-Layers system context.
@@ -547,6 +567,18 @@ export type RequestCrossLayerProps = Readonly<{
  * ```
  */
 export type McpServerMcp = Readonly<{
+  /**
+   * Adds a middleware function that will be called before the MCP route, that can extract
+   * information that will be placed into the cross layer props.
+   *
+   * NOTE: If you return "logging" cross layer props, it will be merged in appropriately
+   * with the normal cross layer props. This can be useful for adding additional IDS.
+   *
+   * Having said that, NON-"logging" properties, are merged together, and can result in overriding values.
+   * @param middleware
+   * @returns
+   */
+  addCrossLayerPropMiddleware: (middleware: CrossLayerPropMiddleware) => void
   /**
    * Starts the MCP server. For HTTP connections, binds an Express app to the
    * configured port. For CLI connections, connects the stdio transport.

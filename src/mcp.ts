@@ -11,6 +11,7 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js'
 import {
+  combineCrossLayerProps,
   Config,
   createErrorObject,
   isErrorObject,
@@ -28,6 +29,7 @@ import {
   ExpressOptions,
   ExpressRoute,
   ExpressMiddleware,
+  CrossLayerPropMiddleware,
 } from './types.js'
 import { create as createModelsMcp } from './models.js'
 import { create as createNilMcp } from './nil.js'
@@ -38,6 +40,7 @@ import {
   createMcpToolFromAnnotatedFunction,
 } from './internal-libs.js'
 import { createMcpResponse } from './libs.js'
+import { isError } from 'lodash'
 
 const DEFAULT_RESPONSE_REQUEST_LOG_LEVEL = 'info'
 const DEFAULT_PORT = 3000
@@ -58,53 +61,58 @@ const create = (
     tools.push(tool)
   }
 
-  const _wrapToolsWithLogger = (tool: McpTool): McpTool => {
-    // This execute is what the MCP SDK calls: (args, extra) where extra is RequestHandlerExtra.
-    // extra.requestInfo contains HTTP headers (and only headers) provided by the SDK transport.
-    const execute = async (input: any, extra?: any) => {
-      const requestId = randomUUID()
-      const logger = context.log
-        .getIdLogger('logRequest', 'requestId', requestId)
-        .applyData({ requestId })
-      const level =
-        context.config[McpNamespace].logging?.requestLogLevel ||
-        DEFAULT_RESPONSE_REQUEST_LOG_LEVEL
-      const requestData =
-        context.config[McpNamespace].logging?.requestLogGetData?.(input) || {}
-      logger[level]('Request received', {
-        method: 'POST',
-        // @ts-ignore
-        url: context.config[McpNamespace].server?.path || '/',
-        tool: tool.name,
-        body: input,
-        ...requestData,
-      })
+  const _wrapToolsWithLogger =
+    (req: express.Request) =>
+    (tool: McpTool): McpTool => {
+      // This execute is what the MCP SDK calls: (args, extra) where extra is RequestHandlerExtra.
+      // extra.requestInfo contains HTTP headers (and only headers) provided by the SDK transport.
+      const execute = async (input: any, extra?: any) => {
+        const requestId = randomUUID()
+        const logger = context.log
+          .getIdLogger('logRequest', 'requestId', requestId)
+          .applyData({ requestId })
+        const level =
+          context.config[McpNamespace].logging?.requestLogLevel ||
+          DEFAULT_RESPONSE_REQUEST_LOG_LEVEL
+        const requestData =
+          context.config[McpNamespace].logging?.requestLogGetData?.(input) || {}
+        logger[level]('Request received', {
+          method: 'POST',
+          // @ts-ignore
+          url: context.config[McpNamespace].server?.path || '/',
+          tool: tool.name,
+          body: input,
+          ...requestData,
+        })
 
-      const { mergedInput, mergedCrossLayerProps } = buildMergedToolInput(
-        input,
-        extra,
-        logger
-      )
+        const { mergedInput, mergedCrossLayerProps } = buildMergedToolInput(
+          req,
+          input,
+          req.extendedCrossLayerProps,
+          logger
+        )
 
-      const result = await tool.execute(mergedInput, mergedCrossLayerProps)
-      const data = get(result, 'content[0].text')
-      const toShow = data ? JSON.parse(data as string) : result
+        const result = await tool.execute(mergedInput, mergedCrossLayerProps)
+        const data = get(result, 'content[0].text')
+        const toShow = data ? JSON.parse(data as string) : result
 
-      const responseData =
-        // @ts-ignore — responseLogGetData receives the tool result, not a Request
-        context.config[McpNamespace].logging?.responseLogGetData?.(result) || {}
-      logger[level]('Request Response', {
-        response: toShow,
-        ...responseData,
-      })
+        const responseData =
+          // @ts-ignore — responseLogGetData receives the tool result, not a Request
+          context.config[McpNamespace].logging?.responseLogGetData?.(result) ||
+          {}
+        logger[level]('Request Response', {
+          response: toShow,
+          ...responseData,
+        })
 
-      return result
+        return result
+      }
+
+      return { ...tool, execute }
     }
 
-    return { ...tool, execute }
-  }
-
   const _buildAllTools = (
+    req: express.Request,
     systemContext: LayerContext<Config, any>
   ): McpTool[] => {
     const config = systemContext.config[McpNamespace]
@@ -133,10 +141,11 @@ const create = (
       nilMcp.executeFeature(),
       ...modelTools,
       ...tools,
-    ].map(_wrapToolsWithLogger)
+    ].map(_wrapToolsWithLogger(req))
   }
 
   const _buildMcpServer = (
+    req: express.Request,
     systemContext: LayerContext<Config, any>
   ): McpServer => {
     const config = systemContext.config[McpNamespace]
@@ -145,7 +154,7 @@ const create = (
       version: config.version || '1.0.0',
     })
 
-    _buildAllTools(systemContext).forEach(tool => {
+    _buildAllTools(req, systemContext).forEach(tool => {
       const inputSchema = isZodSchema(tool.inputSchema)
         ? tool.inputSchema
         : z.object(openApiToZodSchema(tool.inputSchema))
@@ -226,7 +235,7 @@ const create = (
       req: express.Request,
       res: express.Response
     ) => {
-      const server = _buildMcpServer(systemContext)
+      const server = _buildMcpServer(req, systemContext)
       const transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: undefined,
         enableJsonResponse: true,
@@ -250,7 +259,7 @@ const create = (
       if (sessionId && transports[sessionId]) {
         transport = transports[sessionId]
       } else if (!sessionId && isInitializeRequest(req.body)) {
-        const server = _buildMcpServer(systemContext)
+        const server = _buildMcpServer(req, systemContext)
         transport = new StreamableHTTPServerTransport({
           sessionIdGenerator: () => randomUUID(),
           enableJsonResponse: true,
@@ -341,7 +350,7 @@ const create = (
   // ─── CLI transport ─────────────────────────────────────────────────────────
 
   const _startCli = async (systemContext: LayerContext<Config, any>) => {
-    const server = _buildMcpServer(systemContext)
+    const server = _buildMcpServer({}, systemContext)
     const transport = new StdioServerTransport()
     await server.connect(transport)
   }
@@ -351,6 +360,36 @@ const create = (
   const addPreRouteMiddleware = (middleware: ExpressMiddleware) => {
     // eslint-disable-next-line functional/immutable-data
     preRouteMiddleware.push(middleware)
+  }
+
+  const addCrossLayerPropMiddleware = (
+    middleware: CrossLayerPropMiddleware
+  ) => {
+    preRouteMiddleware.push(async (req, res, next) => {
+      const result = await middleware(req, res, next)
+        .then(x => {
+          return x
+        })
+        .catch(e => {
+          return createErrorObject(
+            'UNCAUGHT_EXCEPTION',
+            'An uncaught exception occurred while executing the middleware.',
+            e
+          )
+        })
+      if (!result || isErrorObject(result)) {
+        next(result)
+        return
+      }
+      if (!req.extendedCrossLayerProps) {
+        req.extendedCrossLayerProps = {}
+      }
+      req.extendedCrossLayerProps = combineCrossLayerProps(
+        req.extendedCrossLayerProps,
+        result
+      )
+      next()
+    })
   }
 
   const addAdditionalRoute = (route: ExpressRoute) => {
@@ -448,6 +487,7 @@ const create = (
     addAnnotatedFunction,
     addPreRouteMiddleware,
     addAdditionalRoute,
+    addCrossLayerPropMiddleware,
     set,
   }
 }
