@@ -18,16 +18,18 @@ import {
   createMcpResponse,
   createFeatureNotFoundError,
   isNilAnnotatedFunction,
-  nilAnnotatedFunctionToOpenApi,
   createOpenApiForNonNilAnnotatedFunction,
   isDomainHidden,
   isFeatureHidden,
   areAllModelsHidden,
   isModelHidden,
   commonMcpExecute,
-  crossLayerPropsOpenApi,
   doesDomainNotExist,
 } from './libs.js'
+import {
+  nilAnnotatedFunctionToOpenApi,
+  crossLayerPropsOpenApi,
+} from './internal-libs.js'
 import { default as nilSystem } from './docs/node-in-layers-system.json' with { type: 'json' }
 
 const describeFeatureMcpTool = (): McpToolSchema => {

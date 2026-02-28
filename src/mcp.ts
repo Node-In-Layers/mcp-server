@@ -1,14 +1,23 @@
 import { randomUUID } from 'crypto'
 import z from 'zod'
 import get from 'lodash/get.js'
+import merge from 'lodash/merge.js'
 import express from 'express'
 import bodyParser from 'body-parser'
 import cors from 'cors'
+import { JsonObj } from 'functional-models'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js'
-import { Config, LayerContext } from '@node-in-layers/core'
+import {
+  Config,
+  createErrorObject,
+  isErrorObject,
+  LayerContext,
+  NilAnnotatedFunction,
+  XOR,
+} from '@node-in-layers/core'
 import {
   AppOptions,
   McpServerMcp,
@@ -26,7 +35,9 @@ import {
   buildMergedToolInput,
   isZodSchema,
   openApiToZodSchema,
+  createMcpToolFromAnnotatedFunction,
 } from './internal-libs.js'
+import { createMcpResponse } from './libs.js'
 
 const DEFAULT_RESPONSE_REQUEST_LOG_LEVEL = 'info'
 const DEFAULT_PORT = 3000
@@ -384,10 +395,57 @@ const create = (
     sets.push([key, value])
   }
 
+  const _createExecute = <TIn extends JsonObj, TOut extends XOR<JsonObj, void>>(
+    annotatedFunction: NilAnnotatedFunction<TIn, TOut>
+  ) => {
+    return async (input: any, crossLayerProps: any) => {
+      // @ts-ignore
+      return Promise.resolve()
+        .then(async () => {
+          const result = await annotatedFunction(input, crossLayerProps ?? {})
+          return result
+        })
+        .catch(e => {
+          if (isErrorObject(e)) {
+            return e
+          }
+          return createErrorObject(
+            'UNCAUGHT_EXCEPTION',
+            'An uncaught exception occurred while executing the function.',
+            e
+          )
+        })
+        .then(x => {
+          return createMcpResponse(x as JsonObj | undefined)
+        })
+    }
+  }
+
+  const addAnnotatedFunction = <
+    TIn extends JsonObj,
+    TOut extends XOR<JsonObj, void>,
+  >(
+    annotatedFunction: NilAnnotatedFunction<TIn, TOut>,
+    options?: {
+      name?: string
+      description?: string
+    }
+  ) => {
+    const baseTool = createMcpToolFromAnnotatedFunction(
+      annotatedFunction,
+      options
+    )
+    const tool = merge(baseTool, {
+      execute: _createExecute(annotatedFunction),
+    })
+    addTool(tool)
+  }
+
   return {
     start,
     getApp,
     addTool,
+    addAnnotatedFunction,
     addPreRouteMiddleware,
     addAdditionalRoute,
     set,

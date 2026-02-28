@@ -105,6 +105,73 @@ const _CONTEXT: Record<
     const port = (server.address() as any).port
     return { server, port }
   },
+
+  'mcp-annotated': async () => {
+    const config = {
+      systemName: 'mcp-server-feature-test',
+      environment: 'test',
+      [CoreNamespace.root]: {
+        apps: [
+          await import('@node-in-layers/data/index.js'),
+          await import('../../src/index.js'),
+          _createTestApp(),
+        ],
+        layerOrder: ['services', 'features', ['entries', 'mcp']],
+        logging: {
+          logFormat: LogFormat.json,
+          logLevel: LogLevelNames.silent,
+        },
+        modelFactory: '@node-in-layers/data',
+        modelCruds: true,
+      },
+      [DataNamespace.root]: {
+        databases: {
+          default: { datastoreType: 'memory' },
+        },
+      },
+      [McpNamespace]: {
+        version: '1.0.0',
+        server: { connection: { type: 'http' } },
+      },
+    }
+
+    const system = await loadSystem({ environment: 'test', config })
+
+    const addNumbers = annotatedFunction(
+      {
+        functionName: 'add_numbers',
+        domain: 'test-app',
+        description: 'Adds two numbers and returns the sum',
+        args: z.object({ a: z.number(), b: z.number() }),
+        returns: z.object({ sum: z.number() }),
+      },
+      async (args: { a: number; b: number }) => ({ sum: args.a + args.b })
+    )
+    // Declares { sum: number } but returns wrong type so output schema validation fails
+    const addNumbersBadOutput = annotatedFunction(
+      {
+        functionName: 'add_numbers_bad_output',
+        domain: 'test-app',
+        description:
+          'Same as add_numbers but returns invalid output on purpose',
+        args: z.object({ a: z.number(), b: z.number() }),
+        returns: z.object({ sum: z.number() }),
+      },
+      async () => ({ sum: 'not a number' as any })
+    )
+    // @ts-ignore
+    system.mcp[McpNamespace].addAnnotatedFunction(addNumbers)
+    // @ts-ignore
+    system.mcp[McpNamespace].addAnnotatedFunction(addNumbersBadOutput)
+
+    // @ts-ignore
+    const app = await system.mcp[McpNamespace].getApp(system as any)
+
+    const server = http.createServer(app)
+    await new Promise<void>(resolve => server.listen(0, resolve))
+    const port = (server.address() as any).port
+    return { server, port }
+  },
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -281,6 +348,32 @@ const _ASSERTIONS: Record<string, (world: _World) => void | Promise<void>> = {
     _assert(
       auth === 'Bearer xyz',
       `Expected Authorization header "Bearer xyz", got: "${auth}"`
+    )
+  },
+  'annotated-call-success': world => {
+    const payload = _parsePayload(world.result)
+    _assert(
+      !payload?.error,
+      `Expected no error, got: ${JSON.stringify(payload)}`
+    )
+    _assert(
+      typeof payload?.sum === 'number',
+      `Expected result to have number sum, got: ${JSON.stringify(payload)}`
+    )
+    _assert(
+      payload.sum === 5,
+      `Expected sum to be 5 (2+3), got: ${payload.sum}`
+    )
+  },
+  'annotated-output-schema-validation-fails': world => {
+    const result = world.result
+    const payload = _parsePayload(result)
+    const isError =
+      result?.isError === true ||
+      (payload && typeof payload === 'object' && payload.error != null)
+    _assert(
+      isError,
+      `Expected output schema validation to fail (isError or payload.error), got: isError=${result?.isError}, payload=${JSON.stringify(payload)}`
     )
   },
 }

@@ -5,9 +5,10 @@ import {
   LayerContext,
   XOR,
   CrossLayerProps,
+  NilAnnotatedFunction,
 } from '@node-in-layers/core'
 import express from 'express'
-import { JsonAble } from 'functional-models'
+import { JsonAble, JsonObj } from 'functional-models'
 
 /**
  * The namespace key used to scope all `@node-in-layers/mcp-server` configuration
@@ -565,6 +566,25 @@ export type McpServerMcp = Readonly<{
    * @param tool - The tool definition to register.
    */
   addTool: (tool: McpTool) => void
+
+  /**
+   * Adds an annotated function as a tool.
+   * @param annotatedFunction - The annotated function to add as a tool.
+   * @returns void
+   */
+  addAnnotatedFunction: <TIn extends JsonObj, TOut extends XOR<JsonObj, void>>(
+    annotatedFunction: NilAnnotatedFunction<TIn, TOut>,
+    options?: {
+      /**
+       * A replacement name for the function.
+       */
+      name?: string
+      /**
+       * A replacement description for the function.
+       */
+      description?: string
+    }
+  ) => void
   /**
    * Builds and returns the configured Express app without starting the HTTP
    * listener. Useful when you want to integrate the MCP server into an existing
