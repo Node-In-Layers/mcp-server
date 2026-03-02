@@ -29,6 +29,8 @@ import {
   createModelNotFoundError,
   cleanupSearchQuery,
   doesDomainNotExist,
+  convertZodErrorToErrorObject,
+  isZodError,
 } from './libs.js'
 import {
   McpNamespace,
@@ -192,6 +194,9 @@ export const create = <TConfig extends McpServerConfig & Config>(
         return createModelNotFoundError()
       }
       const result = await modelFunc(input, model.getModel()).catch(e => {
+        if (isZodError(e)) {
+          return convertZodErrorToErrorObject(e)
+        }
         if (e instanceof ValidationError) {
           return createErrorObject('VALIDATION_ERROR', 'Validation Error', {
             details: {
@@ -219,6 +224,9 @@ export const create = <TConfig extends McpServerConfig & Config>(
       execute: _createMcpModelFunc(async (input: any, model) => {
         const data = input.instance
         const result = await model.save(model.create(data)).catch(e => {
+          if (isZodError(e)) {
+            return convertZodErrorToErrorObject(e)
+          }
           if (e instanceof ValidationError) {
             return createErrorObject('VALIDATION_ERROR', 'Validation Error', e)
           }

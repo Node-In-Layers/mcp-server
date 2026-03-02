@@ -1,3 +1,4 @@
+import z from 'zod'
 import { Maybe } from './types.js'
 
 /**
@@ -39,4 +40,36 @@ export const maybe = <T>(_instance: T | undefined): Maybe<T> => {
     instance,
     hasValue,
   }
+}
+
+export const zodParse = <T extends object>(
+  schema: z.ZodType<T>,
+  rawInput: any
+): T => {
+  return schema.parse(rawInput)
+}
+
+export const checkAndSetDefault = <T extends object>(
+  obj: T,
+  key: string,
+  defaultValue: any
+) => {
+  if (!obj[key]) {
+    // eslint-disable-next-line functional/immutable-data
+    obj[key] = defaultValue
+  }
+}
+
+export const pushArray = <T>(array: T[], item: T) => {
+  // eslint-disable-next-line functional/immutable-data
+  array.push(item)
+}
+
+export const setObjectProperty = <T extends object>(
+  obj: T,
+  key: string,
+  value: any
+) => {
+  // eslint-disable-next-line functional/immutable-data
+  obj[key] = value
 }

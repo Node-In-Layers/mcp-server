@@ -1,14 +1,13 @@
+import z from 'zod'
 import flow from 'lodash/flow.js'
 import merge from 'lodash/merge.js'
 import get from 'lodash/get.js'
-import express from 'express'
 import {
   createErrorObject,
   ErrorObject,
   isErrorObject,
   NilAnnotatedFunction,
   Response,
-  combineCrossLayerProps,
 } from '@node-in-layers/core'
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { JsonAble } from 'functional-models'
@@ -16,11 +15,19 @@ import {
   McpNamespace,
   McpServerConfig,
   RequestCrossLayerProps,
-  RequestInfo,
+  ExecuteModelData,
+  ExecuteFeatureData,
+  ExecuteFunctionData,
+  ModelAction,
+  ModelActionToolName,
+  executeModelSchema,
+  executeFeatureSchema,
+  executeFunctionSchema,
 } from './types.js'
 import { crossLayerPropsOpenApi } from './internal-libs.js'
+import { zodParse } from './utils.js'
 
-export { zodToJson } from './internal-libs.js'
+const ACTION_TOOL_NAMES = Object.values(ModelActionToolName)
 
 export const isRequestCrossLayerProps = (
   props: any
@@ -29,50 +36,6 @@ export const isRequestCrossLayerProps = (
     return false
   }
   return props.requestInfo !== undefined
-}
-
-export const buildRequestInfoFromExpressRequest = (
-  req: express.Request
-): RequestInfo => {
-  const headers: Record<string, string> = Object.entries(req.headers).reduce(
-    (acc, [key, value]) => {
-      if (Array.isArray(value)) {
-        return merge(acc, { [key]: value.join(', ') })
-      } else if (value !== undefined) {
-        return merge(acc, { [key]: String(value) })
-      }
-      return acc
-    },
-    {} as Record<string, string>
-  )
-
-  const body =
-    req.body && typeof req.body === 'object' && !Array.isArray(req.body)
-      ? (req.body as Record<string, any>)
-      : {}
-
-  const query: Record<string, string> = Object.entries(req.query).reduce(
-    (acc, [key, value]) => {
-      if (Array.isArray(value)) {
-        return merge(acc, { [key]: value.join(',') })
-      } else if (value !== null && value !== undefined) {
-        return merge(acc, { [key]: String(value) })
-      }
-      return acc
-    },
-    {} as Record<string, string>
-  )
-
-  return {
-    headers,
-    body,
-    query,
-    params: req.params as Record<string, string>,
-    path: req.path,
-    method: req.method,
-    url: req.originalUrl,
-    protocol: req.protocol,
-  }
 }
 
 export const isNilAnnotatedFunction = (
@@ -368,3 +331,151 @@ export const cleanupSearchQuery = (query: any) => {
 
   return flow([ensureHasQuery, addSortDefaults, addSearchDefaults])(query)
 }
+
+export const parseExecuteData = (
+  body: any
+):
+  | ExecuteFeatureData
+  | ExecuteModelData<any>
+  | ExecuteFunctionData
+  | undefined => {
+  if (!body || typeof body !== 'object') {
+    return undefined
+  }
+
+  const toolName = body.toolName || body.name
+  const args = body.args || body.arguments || {}
+
+  if (toolName === 'execute_feature') {
+    return zodParse(executeFeatureSchema(z.object().loose()), {
+      toolName: 'execute_feature',
+      domain: args.domain || '',
+      featureName: args.featureName || '',
+      args,
+    }) as ExecuteFeatureData
+  }
+
+  const modelActionMap: Record<string, ModelAction> = {
+    [ModelActionToolName.Save]: ModelAction.Save,
+    [ModelActionToolName.Retrieve]: ModelAction.Retrieve,
+    [ModelActionToolName.Delete]: ModelAction.Delete,
+    [ModelActionToolName.Search]: ModelAction.Search,
+    [ModelActionToolName.BulkInsert]: ModelAction.BulkInsert,
+    [ModelActionToolName.BulkDelete]: ModelAction.BulkDelete,
+  }
+
+  const action = modelActionMap[toolName]
+  if (action) {
+    const [domain = '', modelName = ''] = (args.modelType || '').split('.')
+    return zodParse(executeModelSchema, {
+      toolName: toolName as any,
+      action,
+      domain,
+      modelName,
+      args,
+    }) as ExecuteModelData<any>
+  }
+
+  if (toolName) {
+    return zodParse(executeFunctionSchema, {
+      toolName: toolName as any,
+      functionName: toolName,
+      args,
+    }) as ExecuteFunctionData
+  }
+
+  return undefined
+}
+
+export const isExecuteFeatureData = (data: any): data is ExecuteFeatureData => {
+  return data?.toolName === 'execute_feature'
+}
+
+export const isExecuteFunctionData = (
+  data: any
+): data is ExecuteFunctionData => {
+  return (
+    data?.functionName !== undefined &&
+    data?.toolName !== 'execute_feature' &&
+    !ACTION_TOOL_NAMES.includes(data?.toolName)
+  )
+}
+
+export const isExecuteModelData = (data: any): data is ExecuteModelData => {
+  return ACTION_TOOL_NAMES.includes(data?.toolName)
+}
+
+export const isExecuteModelSave = (
+  data: any
+): data is ExecuteModelData<ModelAction.Save> => {
+  if (!isExecuteModelData(data)) {
+    return false
+  }
+  return data?.action === ModelAction.Save
+}
+
+export const isExecuteModelRetrieve = (
+  data: any
+): data is ExecuteModelData<ModelAction.Retrieve> => {
+  if (!isExecuteModelData(data)) {
+    return false
+  }
+  return data?.action === ModelAction.Retrieve
+}
+
+export const isExecuteModelDelete = (
+  data: any
+): data is ExecuteModelData<ModelAction.Delete> => {
+  if (!isExecuteModelData(data)) {
+    return false
+  }
+  return data?.action === ModelAction.Delete
+}
+
+export const isExecuteModelSearch = (
+  data: any
+): data is ExecuteModelData<ModelAction.Search> => {
+  if (!isExecuteModelData(data)) {
+    return false
+  }
+  return data?.action === ModelAction.Search
+}
+
+export const isExecuteModelBulkInsert = (
+  data: any
+): data is ExecuteModelData<ModelAction.BulkInsert> => {
+  if (!isExecuteModelData(data)) {
+    return false
+  }
+  return data?.action === ModelAction.BulkInsert
+}
+
+export const isExecuteModelBulkDelete = (
+  data: any
+): data is ExecuteModelData<ModelAction.BulkDelete> => {
+  if (!isExecuteModelData(data)) {
+    return false
+  }
+  return data?.action === ModelAction.BulkDelete
+}
+
+export const isZodError = (error: any): error is z.ZodError => {
+  return error instanceof z.ZodError
+}
+
+export const convertZodErrorToErrorObject = (
+  error: z.ZodError
+): ErrorObject => {
+  // AI: Convert this into a proper error object.
+  const issues = error.issues.map((issue: z.ZodIssue) => {
+    return {
+      path: issue.path.join('.'),
+      message: issue.message,
+    }
+  })
+  return createErrorObject('VALIDATION_ERROR', 'A validation error occurred', {
+    issues,
+  })
+}
+
+export { buildRequestInfoFromExpressRequest } from './internal-libs.js'

@@ -25,6 +25,8 @@ import {
   isModelHidden,
   commonMcpExecute,
   doesDomainNotExist,
+  convertZodErrorToErrorObject,
+  isZodError,
 } from './libs.js'
 import {
   nilAnnotatedFunctionToOpenApi,
@@ -303,6 +305,9 @@ export const create = <TConfig extends McpServerConfig & Config>(
           e => {
             if (isErrorObject(e)) {
               return e
+            }
+            if (isZodError(e)) {
+              return convertZodErrorToErrorObject(e)
             }
             return createErrorObject(
               'UNCAUGHT_EXCEPTION',

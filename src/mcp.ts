@@ -39,8 +39,12 @@ import {
   openApiToZodSchema,
   createMcpToolFromAnnotatedFunction,
 } from './internal-libs.js'
-import { createMcpResponse } from './libs.js'
-import { isError } from 'lodash'
+import {
+  convertZodErrorToErrorObject,
+  createMcpResponse,
+  isZodError,
+} from './libs.js'
+import { checkAndSetDefault, pushArray, setObjectProperty } from './utils.js'
 
 const DEFAULT_RESPONSE_REQUEST_LOG_LEVEL = 'info'
 const DEFAULT_PORT = 3000
@@ -57,8 +61,7 @@ const create = (
   const additionalRoutes: ExpressRoute[] = []
 
   const addTool = (tool: McpTool) => {
-    // eslint-disable-next-line functional/immutable-data
-    tools.push(tool)
+    pushArray(tools, tool)
   }
 
   const _wrapToolsWithLogger =
@@ -66,7 +69,7 @@ const create = (
     (tool: McpTool): McpTool => {
       // This execute is what the MCP SDK calls: (args, extra) where extra is RequestHandlerExtra.
       // extra.requestInfo contains HTTP headers (and only headers) provided by the SDK transport.
-      const execute = async (input: any, extra?: any) => {
+      const execute = async (input: any) => {
         const requestId = randomUUID()
         const logger = context.log
           .getIdLogger('logRequest', 'requestId', requestId)
@@ -202,7 +205,6 @@ const create = (
   ): Promise<express.Express> => {
     const config = systemContext.config[McpNamespace]
     const isStateful = Boolean(config.stateful)
-    // @ts-ignore
     const path: string = config.server?.path || '/'
     const expressOpts = _buildExpressOptions(options)
 
@@ -224,8 +226,7 @@ const create = (
       if (expressOpts.afterRouteCallback) {
         return async (req: express.Request, res: express.Response) => {
           await func(req, res)
-          // @ts-ignore
-          await expressOpts.afterRouteCallback(req, res)
+          await expressOpts?.afterRouteCallback?.(req, res)
         }
       }
       return func
@@ -264,8 +265,7 @@ const create = (
           sessionIdGenerator: () => randomUUID(),
           enableJsonResponse: true,
           onsessioninitialized: newSessionId => {
-            // eslint-disable-next-line functional/immutable-data
-            transports[newSessionId] = transport
+            setObjectProperty(transports, newSessionId, transport)
           },
         })
         // eslint-disable-next-line functional/immutable-data
@@ -358,19 +358,21 @@ const create = (
   // ─── Public API ────────────────────────────────────────────────────────────
 
   const addPreRouteMiddleware = (middleware: ExpressMiddleware) => {
-    // eslint-disable-next-line functional/immutable-data
-    preRouteMiddleware.push(middleware)
+    pushArray(preRouteMiddleware, middleware)
   }
 
   const addCrossLayerPropMiddleware = (
     middleware: CrossLayerPropMiddleware
   ) => {
-    preRouteMiddleware.push(async (req, res, next) => {
+    pushArray(preRouteMiddleware, async (req, res, next) => {
       const result = await middleware(req, res, next)
         .then(x => {
           return x
         })
         .catch(e => {
+          if (isZodError(e)) {
+            return convertZodErrorToErrorObject(e)
+          }
           return createErrorObject(
             'UNCAUGHT_EXCEPTION',
             'An uncaught exception occurred while executing the middleware.',
@@ -382,19 +384,19 @@ const create = (
         return
       }
       if (!req.extendedCrossLayerProps) {
-        req.extendedCrossLayerProps = {}
+        checkAndSetDefault(req, 'extendedCrossLayerProps', {})
       }
-      req.extendedCrossLayerProps = combineCrossLayerProps(
-        req.extendedCrossLayerProps,
-        result
+      setObjectProperty(
+        req,
+        'extendedCrossLayerProps',
+        combineCrossLayerProps(req.extendedCrossLayerProps, result)
       )
       next()
     })
   }
 
   const addAdditionalRoute = (route: ExpressRoute) => {
-    // eslint-disable-next-line functional/immutable-data
-    additionalRoutes.push(route)
+    pushArray(additionalRoutes, route)
   }
 
   const start = async <T extends Config>(
@@ -430,8 +432,7 @@ const create = (
   }
 
   const set = (key: string, value: any) => {
-    // eslint-disable-next-line functional/immutable-data
-    sets.push([key, value])
+    pushArray(sets, [key, value])
   }
 
   const _createExecute = <TIn extends JsonObj, TOut extends XOR<JsonObj, void>>(
@@ -447,6 +448,9 @@ const create = (
         .catch(e => {
           if (isErrorObject(e)) {
             return e
+          }
+          if (isZodError(e)) {
+            return convertZodErrorToErrorObject(e)
           }
           return createErrorObject(
             'UNCAUGHT_EXCEPTION',
