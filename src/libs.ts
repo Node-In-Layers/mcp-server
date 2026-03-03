@@ -320,4 +320,7 @@ export const cleanupSearchQuery = (query: any) => {
   return flow([ensureHasQuery, addSortDefaults, addSearchDefaults])(query)
 }
 
-export { buildRequestInfoFromExpressRequest } from './internal-libs.js'
+export {
+  buildRequestInfoFromExpressRequest,
+  nilAnnotatedFunctionToOpenApi,
+} from './internal-libs.js'
