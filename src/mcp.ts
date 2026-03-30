@@ -73,7 +73,7 @@ const create = (
     (tool: McpTool): McpTool => {
       // This execute is what the MCP SDK calls: (args, extra) where extra is RequestHandlerExtra.
       // extra.requestInfo contains HTTP headers (and only headers) provided by the SDK transport.
-      const execute = async (input: any) => {
+      const execute = async (input: any, transportExtra?: any) => {
         const requestId = randomUUID()
         const logger = context.log
           .getIdLogger('logRequest', 'requestId', requestId)
@@ -96,7 +96,8 @@ const create = (
           req,
           input,
           req.extendedCrossLayerProps,
-          logger
+          logger,
+          transportExtra
         )
 
         const result = await tool.execute(mergedInput, mergedCrossLayerProps)

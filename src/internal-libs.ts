@@ -20,7 +20,11 @@ import {
 export const buildRequestInfoFromExpressRequest = (
   req: express.Request
 ): RequestInfo => {
-  const headers: Record<string, string> = Object.entries(req.headers).reduce(
+  // CLI (stdio) uses a minimal stub `{}` instead of a real Express request; avoid
+  // Object.entries(undefined) on missing headers/query.
+  const headers: Record<string, string> = Object.entries(
+    req.headers ?? {}
+  ).reduce(
     (acc, [key, value]) => {
       if (Array.isArray(value)) {
         return merge(acc, { [key]: value.join(', ') })
@@ -37,7 +41,7 @@ export const buildRequestInfoFromExpressRequest = (
       ? (req.body as Record<string, any>)
       : {}
 
-  const query: Record<string, string> = Object.entries(req.query).reduce(
+  const query: Record<string, string> = Object.entries(req.query ?? {}).reduce(
     (acc, [key, value]) => {
       if (Array.isArray(value)) {
         return merge(acc, { [key]: value.join(',') })
@@ -53,11 +57,11 @@ export const buildRequestInfoFromExpressRequest = (
     headers,
     body,
     query,
-    params: req.params as Record<string, string>,
-    path: req.path,
-    method: req.method,
-    url: req.originalUrl,
-    protocol: req.protocol,
+    params: (req.params ?? {}) as Record<string, string>,
+    path: req.path ?? '',
+    method: req.method ?? '',
+    url: req.originalUrl ?? '',
+    protocol: req.protocol ?? 'http',
   }
 }
 
@@ -426,10 +430,12 @@ export const buildMergedToolInput = (
   req: express.Request,
   input: any,
   extendedCrossLayerProps: CrossLayerProps | undefined,
-  logger: Logger
+  logger: Logger,
+  /** MCP SDK `RequestHandlerExtra` (stdio/http); used for authInfo when `req` is a CLI stub */
+  transportExtra?: any
 ): { mergedInput: any; mergedCrossLayerProps: any } => {
   const requestInfo = buildRequestInfoFromExpressRequest(req)
-  const authInfo = buildAuthInfoFromReq(req)
+  const authInfo = buildAuthInfoFromReq(transportExtra ?? req)
 
   const mergedCrossLayerProps = createCrossLayerProps(
     logger,
