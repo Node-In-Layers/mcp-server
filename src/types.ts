@@ -127,6 +127,15 @@ export type SystemUseExample = Readonly<{
 export type McpServerConfig = Readonly<{
   [McpNamespace]: {
     /**
+     * Operating mode for the MCP server.
+     *
+     * - `'nodeInLayers'` (default): exposes the full Node-in-Layers navigation
+     *   surface (START_HERE, list/describe/execute feature, model tools).
+     * - `'flat'`: exposes each feature as a first-class MCP tool (e.g.
+     *   `domain_featureName`) and omits the navigation/model tools entirely.
+     */
+    mode?: 'nodeInLayers' | 'flat'
+    /**
      * Semver string reported by the MCP server during the initialize handshake.
      * Defaults to `'1.0.0'` if omitted.
      */

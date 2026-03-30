@@ -40,7 +40,14 @@ import {
   openApiToZodSchema,
   createMcpToolFromAnnotatedFunction,
 } from './internal-libs.js'
-import { createMcpResponse } from './libs.js'
+import {
+  createMcpResponse,
+  createOpenApiForNonNilAnnotatedFunction,
+  doesDomainNotExist,
+  isDomainHidden,
+  isFeatureHidden,
+  isNilAnnotatedFunction,
+} from './libs.js'
 import { checkAndSetDefault, pushArray, setObjectProperty } from './utils.js'
 
 const DEFAULT_RESPONSE_REQUEST_LOG_LEVEL = 'info'
@@ -116,6 +123,84 @@ const create = (
     systemContext: LayerContext<Config, any>
   ): McpTool[] => {
     const config = systemContext.config[McpNamespace]
+    const mode = config.mode || 'nodeInLayers'
+
+    if (mode === 'flat') {
+      const mcpConfig = systemContext.config as McpServerConfig
+      const hiddenPaths = new Set<string>([
+        '@node-in-layers/core',
+        '@node-in-layers/data',
+        '@node-in-layers/mcp-server',
+        ...(mcpConfig[McpNamespace].hiddenPaths || []),
+      ])
+      const isDomainHiddenFunc = isDomainHidden(hiddenPaths, mcpConfig)
+      const isFeatureHiddenFunc = isFeatureHidden(hiddenPaths, mcpConfig)
+      const doesDomainNotExistFunc = doesDomainNotExist(
+        systemContext as unknown as { features: Record<string, any> }
+      )
+
+      const features: Record<string, any> =
+        (systemContext as any).features || {}
+      const featureTools: McpTool[] = Object.entries(features).reduce(
+        (domainAcc, [domainName, domainFeatures]) => {
+          if (
+            doesDomainNotExistFunc(domainName) ||
+            isDomainHiddenFunc(domainName)
+          ) {
+            return domainAcc
+          }
+
+          const domainTools = Object.entries(
+            domainFeatures as Record<string, any>
+          ).reduce((featureAcc, [featureName, feature]) => {
+            if (typeof feature !== 'function') {
+              return featureAcc
+            }
+            if (isFeatureHiddenFunc(domainName, featureName)) {
+              return featureAcc
+            }
+
+            const toolName = `${domainName}_${featureName}`
+
+            if (isNilAnnotatedFunction(feature)) {
+              const baseTool = createMcpToolFromAnnotatedFunction(feature, {
+                name: toolName,
+              })
+              const tool = merge(baseTool, {
+                execute: _createExecute(feature),
+              })
+              return featureAcc.concat(tool)
+            }
+
+            const { input, output } =
+              createOpenApiForNonNilAnnotatedFunction(toolName)
+            const baseTool: Omit<McpTool, 'execute'> = {
+              name: toolName,
+              description: '',
+              inputSchema: input,
+              outputSchema: output,
+            }
+            const wrapped = ((args: JsonObj, crossLayerProps?: JsonObj) =>
+              // @ts-ignore – feature may or may not use crossLayerProps
+              feature(
+                args,
+                crossLayerProps
+              )) as unknown as NilAnnotatedFunction<JsonObj, JsonObj>
+
+            const tool = merge(baseTool, {
+              execute: _createExecute(wrapped),
+            })
+            return featureAcc.concat(tool)
+          }, [] as McpTool[])
+
+          return domainAcc.concat(domainTools)
+        },
+        [] as McpTool[]
+      )
+
+      return [...featureTools, ...tools].map(_wrapToolsWithLogger(req))
+    }
+
     const nilMcp = createNilMcp(systemContext)
     const modelTools = config.hideComponents?.allModels
       ? []

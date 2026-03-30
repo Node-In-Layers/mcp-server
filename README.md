@@ -139,6 +139,32 @@ The **documentation returned to the AI** (including what START_HERE returns) is 
 
 So the AI learns the shape of the system from the configurable “start here” and default system entries, then uses the tools to list/describe/execute as needed.
 
+### Flat mode (feature tools only)
+
+If you want a very small “front-and-center” tool surface (for example: a system with a single function), you can run the MCP server in **flat mode**.
+
+In flat mode the server:
+
+- Exposes **each feature function as its own MCP tool** named `domain_featureName`.
+- **Does not** expose the Node-in-Layers navigation tools (`START_HERE`, `list_domains`, `list_features`, `describe_feature`, `execute_feature`).
+- **Does not** expose any model CRUD tooling (`list_models`, `describe_model`, `save`, `retrieve`, `delete`, `search`, `bulkInsert`, `bulkDelete`).
+- Still exposes any tools you explicitly register via `addTool()` / `addAnnotatedFunction()`.
+
+Enable it with:
+
+```typescript
+// /config.base.mts
+import { McpNamespace } from '@node-in-layers/mcp-server'
+
+export default () => ({
+  // ...
+  [McpNamespace]: {
+    mode: 'flat',
+    server: { connection: { type: 'cli' } },
+  },
+})
+```
+
 ### Hiding components
 
 You can restrict what is visible (as well as executable) to callers (e.g. certain domains, features, or all model CRUDs) so only the intended surface is exposed.
