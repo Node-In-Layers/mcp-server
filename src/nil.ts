@@ -170,8 +170,8 @@ const _listDomains = (context: FeaturesContext<McpServerConfig & Config>) => {
         return acc
       }
 
-      const description = context.config['@node-in-layers/core'].apps.find(
-        app => app.name === domainName
+      const description = context.config['@node-in-layers/core'].domains?.find(
+        domain => domain.name === domainName
       )?.description
       return acc.concat({
         name: domainName,

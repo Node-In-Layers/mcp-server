@@ -72,7 +72,7 @@ const _CONTEXT: Record<
       systemName: 'mcp-server-feature-test',
       environment: 'test',
       [CoreNamespace.root]: {
-        apps: [
+        domains: [
           await import('@node-in-layers/data/index.js'),
           await import('../../src/index.js'),
           _createTestApp(),
@@ -111,7 +111,7 @@ const _CONTEXT: Record<
       systemName: 'mcp-server-feature-test',
       environment: 'test',
       [CoreNamespace.root]: {
-        apps: [
+        domains: [
           await import('@node-in-layers/data/index.js'),
           await import('../../src/index.js'),
           _createTestApp(),

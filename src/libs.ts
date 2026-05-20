@@ -320,6 +320,142 @@ export const cleanupSearchQuery = (query: any) => {
   return flow([ensureHasQuery, addSortDefaults, addSearchDefaults])(query)
 }
 
+const _isRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === 'object'
+
+export const getMcpToolName = (body: unknown): string | undefined => {
+  if (!_isRecord(body)) {
+    return undefined
+  }
+  if (typeof body.toolName === 'string') {
+    return body.toolName
+  }
+  if (typeof body.name === 'string') {
+    return body.name
+  }
+  const params = body.params
+  if (_isRecord(params)) {
+    if (typeof params.toolName === 'string') {
+      return params.toolName
+    }
+    if (typeof params.name === 'string') {
+      return params.name
+    }
+  }
+  return undefined
+}
+
+export const getMcpToolArguments = (body: unknown): any | undefined => {
+  if (!_isRecord(body)) {
+    return undefined
+  }
+  if (body.arguments) {
+    return body.arguments
+  }
+  if (body.args) {
+    return body.args
+  }
+  const params = body.params
+  if (_isRecord(params)) {
+    if (params.arguments) {
+      return params.arguments
+    }
+    if (params.args) {
+      return params.args
+    }
+  }
+  return undefined
+}
+
+export const isExecuteModel = (
+  reqOrBody: any
+): ExecuteModelData | undefined => {
+  const body = reqOrBody?.body ? reqOrBody.body : reqOrBody
+  const toolName = getMcpToolName(body)
+  const args = getMcpToolArguments(body)
+
+  if (!toolName || !toolName.startsWith('model_')) {
+    return undefined
+  }
+
+  const actionMapping: Record<string, string> = {
+    model_save: 'save',
+    model_retrieve: 'retrieve',
+    model_delete: 'delete',
+    model_search: 'search',
+    model_bulk_insert: 'bulkInsert',
+    model_bulk_delete: 'bulkDelete',
+  }
+
+  const action = actionMapping[toolName]
+  if (!action) {
+    return undefined
+  }
+
+  const modelType = args?.modelType
+  if (!modelType || typeof modelType !== 'string') {
+    return undefined
+  }
+
+  const dotIndex = modelType.lastIndexOf('.')
+  if (dotIndex === -1) {
+    return undefined
+  }
+
+  const domain = modelType.slice(0, dotIndex)
+  const modelName = modelType.slice(dotIndex + 1)
+
+  return {
+    toolName,
+    action,
+    domain,
+    modelName,
+    args,
+  }
+}
+
+export const isExecuteFeature = (
+  reqOrBody: any
+): ExecuteFeatureData | undefined => {
+  const body = reqOrBody?.body ? reqOrBody.body : reqOrBody
+  const toolName = getMcpToolName(body)
+  const args = getMcpToolArguments(body)
+
+  if (!toolName) {
+    return undefined
+  }
+
+  // Exclude built-in model tools and describe/list tools
+  if (
+    toolName.startsWith('model_') ||
+    toolName === 'list_models' ||
+    toolName === 'describe_model' ||
+    toolName === 'list_domains' ||
+    toolName === 'list_features' ||
+    toolName === 'describe_feature' ||
+    toolName === 'describe_system'
+  ) {
+    return undefined
+  }
+
+  if (toolName === 'execute_feature') {
+    return {
+      toolName,
+      domain: args?.domain,
+      featureName: args?.featureName || '',
+      args: args?.args || {},
+    }
+  }
+
+  // For directly added features
+  return {
+    toolName,
+    domain: undefined, // Domain is often unknown from just the request body for direct tools
+    featureName: toolName,
+    args: args || {},
+  }
+}
+
 export {
   buildRequestInfoFromExpressRequest,
   nilAnnotatedFunctionToOpenApi,
