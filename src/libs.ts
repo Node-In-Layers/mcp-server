@@ -11,6 +11,12 @@ import {
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { JsonAble } from 'functional-models'
 import {
+  ExecuteModelData,
+  ExecuteFeatureData,
+  ModelAction,
+  ModelActionToolName,
+} from '@node-in-layers/mcp'
+import {
   McpNamespace,
   McpServerConfig,
   RequestCrossLayerProps,
@@ -405,9 +411,10 @@ export const isExecuteModel = (
   const domain = modelType.slice(0, dotIndex)
   const modelName = modelType.slice(dotIndex + 1)
 
+  // @ts-ignore
   return {
-    toolName,
-    action,
+    toolName: toolName as ModelActionToolName,
+    action: action as ModelAction,
     domain,
     modelName,
     args,
@@ -449,8 +456,8 @@ export const isExecuteFeature = (
 
   // For directly added features
   return {
-    toolName,
-    domain: undefined, // Domain is often unknown from just the request body for direct tools
+    toolName: toolName as 'execute_feature',
+    domain: '',
     featureName: toolName,
     args: args || {},
   }
